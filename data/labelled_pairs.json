@@ -1,0 +1,179 @@
+{
+  "note": "a and b are sample_id values in sample_members.json. Labels proposed by Grok Bot and reviewed by a human. Pairs 1-20 are the core set; 21-23 were flagged as extra good matches.",
+  "pairs": [
+    {
+      "a": 1,
+      "b": 2,
+      "label": "should_meet",
+      "reason": "She needs someone who knows Postgres at scale; he needs real workloads to stress-test his sharding tool."
+    },
+    {
+      "a": 4,
+      "b": 5,
+      "label": "should_meet",
+      "reason": "His NHS triage tool needs a clinical safety officer; she wants health-tech startups as first clients."
+    },
+    {
+      "a": 6,
+      "b": 7,
+      "label": "should_meet",
+      "reason": "His app needs accessibility-minded design; she wants product teams as public case studies."
+    },
+    {
+      "a": 10,
+      "b": 11,
+      "label": "should_meet",
+      "reason": "She needs to measure model accuracy in a regulated field; his evals platform targets exactly that."
+    },
+    {
+      "a": 12,
+      "b": 13,
+      "label": "should_meet",
+      "reason": "Robotics founder seeking a hardware-savvy angel; her syndicate wants robotics founders."
+    },
+    {
+      "a": 8,
+      "b": 9,
+      "label": "should_meet",
+      "reason": "His meetup needs City sponsors; her DevRel programme wants community partners to sponsor."
+    },
+    {
+      "a": 15,
+      "b": 16,
+      "label": "should_meet",
+      "reason": "She needs placement partners for returners; he is hiring and open to returners."
+    },
+    {
+      "a": 17,
+      "b": 18,
+      "label": "should_meet",
+      "reason": "He needs a quick GDPR review; she advises founders on GDPR."
+    },
+    {
+      "a": 19,
+      "b": 3,
+      "label": "should_meet",
+      "reason": "He needs climate investors; her fund wants climate founders with traction."
+    },
+    {
+      "a": 14,
+      "b": 8,
+      "label": "should_meet",
+      "reason": "He needs volunteer mentors; Marcus runs a community of engineers."
+    },
+    {
+      "a": 23,
+      "b": 1,
+      "label": "should_meet",
+      "reason": "He offers the Postgres-at-scale backend skills she is looking for."
+    },
+    {
+      "a": 24,
+      "b": 33,
+      "label": "should_meet",
+      "reason": "Non-technical founder needs an MVP backend; Nadia's agency wants startup clients."
+    },
+    {
+      "a": 21,
+      "b": 34,
+      "label": "should_meet",
+      "reason": "Jonas backs pre-seed home-energy startups."
+    },
+    {
+      "a": 22,
+      "b": 3,
+      "label": "should_meet",
+      "reason": "Sofia's climate fund fits green consumer finance."
+    },
+    {
+      "a": 25,
+      "b": 35,
+      "label": "should_meet",
+      "reason": "She needs red-teaming before a regulator review; that is his product."
+    },
+    {
+      "a": 26,
+      "b": 5,
+      "label": "should_meet",
+      "reason": "Lucy needs a clinical safety officer; Amara's consultancy wants health-tech clients."
+    },
+    {
+      "a": 27,
+      "b": 36,
+      "label": "should_meet",
+      "reason": "Pawel needs an NHS pilot site; Ian is looking for triage vendors to pilot."
+    },
+    {
+      "a": 28,
+      "b": 37,
+      "label": "should_meet",
+      "reason": "Kemi wants a weekend kids' club near Hackney; Megan runs one that needs mentors."
+    },
+    {
+      "a": 30,
+      "b": 32,
+      "label": "should_meet",
+      "reason": "Callum needs an accessibility audit before a deadline; Elif wants case studies."
+    },
+    {
+      "a": 39,
+      "b": 12,
+      "label": "should_meet",
+      "reason": "Ade needs real warehouse data; Daniel's picking robots produce it and gain vision expertise."
+    },
+    {
+      "a": 29,
+      "b": 38,
+      "label": "should_meet",
+      "reason": "Tariq's coding charity needs partners; Laura's bank volunteering programme wants tech charities."
+    },
+    {
+      "a": 31,
+      "b": 6,
+      "label": "should_meet",
+      "reason": "Zara wants fintech clients for UX research; Leo is building a fintech app."
+    },
+    {
+      "a": 40,
+      "b": 19,
+      "label": "should_meet",
+      "reason": "Maya needs founders with deployment data; Samir runs a smart-meter data platform."
+    },
+    {
+      "a": 21,
+      "b": 22,
+      "label": "should_not_meet",
+      "reason": "Both heat-pump founders pitching the same climate funds."
+    },
+    {
+      "a": 23,
+      "b": 24,
+      "label": "should_not_meet",
+      "reason": "Both sell backend work to startups; neither needs what the other offers."
+    },
+    {
+      "a": 25,
+      "b": 10,
+      "label": "should_not_meet",
+      "reason": "Competing LLM evals tools aimed at the same regulated buyers."
+    },
+    {
+      "a": 26,
+      "b": 27,
+      "label": "should_not_meet",
+      "reason": "Both GP triage products bidding for the same NHS pilots."
+    },
+    {
+      "a": 28,
+      "b": 29,
+      "label": "should_not_meet",
+      "reason": "Both East London kids' coding clubs competing for the same mentors."
+    },
+    {
+      "a": 30,
+      "b": 7,
+      "label": "should_not_meet",
+      "reason": "Both accessibility consultancies chasing the same case-study clients."
+    }
+  ]
+}

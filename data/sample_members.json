@@ -1,0 +1,286 @@
+{
+  "sample": true,
+  "note": "Fictional sample data generated with Grok Bot. Not real people.",
+  "members": [
+    {
+      "sample_id": 1,
+      "name": "Priya Raman",
+      "line": "Building a carbon-accounting API for SMEs, need a Python backend engineer who knows Postgres at scale",
+      "speak_on": "Climate tech data pipelines",
+      "is_sample": true
+    },
+    {
+      "sample_id": 2,
+      "name": "Tom Okafor",
+      "line": "Building an open-source Postgres sharding tool, need real-world users to stress-test it",
+      "speak_on": "Scaling Postgres without Kubernetes",
+      "is_sample": true
+    },
+    {
+      "sample_id": 3,
+      "name": "Sofia Marchetti",
+      "line": "Building a seed fund for UK climate startups, need early-stage founders with traction data",
+      "speak_on": "What climate VCs actually look for",
+      "is_sample": true
+    },
+    {
+      "sample_id": 4,
+      "name": "James Whitfield",
+      "line": "Building an AI triage assistant for NHS GP surgeries, need a clinical safety officer",
+      "speak_on": "Selling software into the NHS",
+      "is_sample": true
+    },
+    {
+      "sample_id": 5,
+      "name": "Dr Amara Mensah",
+      "line": "Building a DCB0129 clinical safety consultancy, need health-tech startups as first clients",
+      "speak_on": "Clinical risk management for AI tools",
+      "is_sample": true
+    },
+    {
+      "sample_id": 6,
+      "name": "Leo Fischer",
+      "line": "Building a React Native fintech app for freelancers, need a designer who gets accessibility",
+      "speak_on": "Open Banking APIs in practice",
+      "is_sample": true
+    },
+    {
+      "sample_id": 7,
+      "name": "Hana Sato",
+      "line": "Building an accessibility audit studio, need product teams willing to be public case studies",
+      "speak_on": "Inclusive design for mobile",
+      "is_sample": true
+    },
+    {
+      "sample_id": 8,
+      "name": "Marcus Bell",
+      "line": "Building a meetup for Black engineers in fintech, need venues and sponsors in the City",
+      "speak_on": "Building developer communities",
+      "is_sample": true
+    },
+    {
+      "sample_id": 9,
+      "name": "Ines Duarte",
+      "line": "Building a DevRel programme at a Shoreditch payments scale-up, need community partners to sponsor",
+      "speak_on": "Developer relations metrics that matter",
+      "is_sample": true
+    },
+    {
+      "sample_id": 10,
+      "name": "Ravi Kapoor",
+      "line": "Building an LLM evals platform, need teams shipping LLM features into regulated industries",
+      "speak_on": "Evaluating LLMs before production",
+      "is_sample": true
+    },
+    {
+      "sample_id": 11,
+      "name": "Chloe Barnes",
+      "line": "Building a legal-tech contract reviewer, need a reliable way to measure model accuracy",
+      "speak_on": "AI in law firms",
+      "is_sample": true
+    },
+    {
+      "sample_id": 12,
+      "name": "Daniel Novak",
+      "line": "Building a robotics startup for warehouse picking, need a hardware-savvy angel investor",
+      "speak_on": "Robotics prototyping on a budget",
+      "is_sample": true
+    },
+    {
+      "sample_id": 13,
+      "name": "Fatima Hussain",
+      "line": "Building an angel syndicate focused on deep tech, need technical founders in robotics or materials",
+      "speak_on": "Angel investing for operators",
+      "is_sample": true
+    },
+    {
+      "sample_id": 14,
+      "name": "Oliver Grant",
+      "line": "Building an edtech platform teaching kids to code, need volunteer mentors from industry",
+      "speak_on": "Teaching programming to under-12s",
+      "is_sample": true
+    },
+    {
+      "sample_id": 15,
+      "name": "Aisha Bello",
+      "line": "Building a returners programme for engineers after career breaks, need placement partners",
+      "speak_on": "Returning to tech after a break",
+      "is_sample": true
+    },
+    {
+      "sample_id": 16,
+      "name": "Ben Carter",
+      "line": "Building a dev tooling startup, need a first senior hire and is open to career returners",
+      "speak_on": "Hiring your first five engineers",
+      "is_sample": true
+    },
+    {
+      "sample_id": 17,
+      "name": "Yuki Tanaka",
+      "line": "Building a GDPR-compliant analytics product, need a privacy lawyer for a quick review",
+      "speak_on": "Privacy-first product analytics",
+      "is_sample": true
+    },
+    {
+      "sample_id": 18,
+      "name": "Helena Kowalski",
+      "line": "Building a tech-law practice for startups, need more founders to advise on GDPR and the EU AI Act",
+      "speak_on": "The EU AI Act for UK startups",
+      "is_sample": true
+    },
+    {
+      "sample_id": 19,
+      "name": "Samir Haddad",
+      "line": "Building a smart-meter data platform for housing associations, need climate investors",
+      "speak_on": "Energy data and retrofit",
+      "is_sample": true
+    },
+    {
+      "sample_id": 20,
+      "name": "Grace Liu",
+      "line": "Building a podcast on London startup stories, need founders with honest failure stories",
+      "speak_on": "Storytelling for founders",
+      "is_sample": true
+    },
+    {
+      "sample_id": 21,
+      "name": "Kwame Asante",
+      "line": "Building a heat-pump installer marketplace, need a seed round from a climate fund",
+      "speak_on": "Decarbonising UK homes",
+      "is_sample": true
+    },
+    {
+      "sample_id": 22,
+      "name": "Rosie Hale",
+      "line": "Building a heat-pump financing platform, need a seed round from a climate fund",
+      "speak_on": "Green consumer finance",
+      "is_sample": true
+    },
+    {
+      "sample_id": 23,
+      "name": "Arjun Mehta",
+      "line": "Building a freelance Go and Postgres backend practice, need startup clients",
+      "speak_on": "Postgres performance tuning",
+      "is_sample": true
+    },
+    {
+      "sample_id": 24,
+      "name": "Nadia Petrova",
+      "line": "Building a small Node and Postgres backend agency, need startup clients",
+      "speak_on": "Running a dev agency profitably",
+      "is_sample": true
+    },
+    {
+      "sample_id": 25,
+      "name": "Ethan Brooks",
+      "line": "Building an LLM red-teaming and evals tool, need pilots in regulated industries",
+      "speak_on": "Breaking LLMs before attackers do",
+      "is_sample": true
+    },
+    {
+      "sample_id": 26,
+      "name": "Lucy Adeyemi",
+      "line": "Building an AI appointment-triage tool for GP surgeries, need a clinical safety officer",
+      "speak_on": "Patient-facing AI design",
+      "is_sample": true
+    },
+    {
+      "sample_id": 27,
+      "name": "Pawel Zielinski",
+      "line": "Building an online-consultation triage product for GP surgeries, need an NHS pilot site",
+      "speak_on": "Interoperability with GP systems",
+      "is_sample": true
+    },
+    {
+      "sample_id": 28,
+      "name": "Megan O'Neill",
+      "line": "Building a weekend coding club for kids in Hackney, need volunteer mentors",
+      "speak_on": "Running free tech clubs",
+      "is_sample": true
+    },
+    {
+      "sample_id": 29,
+      "name": "Tariq Rahman",
+      "line": "Building an after-school coding charity in Tower Hamlets, need volunteer mentors",
+      "speak_on": "Charity fundraising for edtech",
+      "is_sample": true
+    },
+    {
+      "sample_id": 30,
+      "name": "Elif Demir",
+      "line": "Building an accessibility consultancy, need product teams as public case studies",
+      "speak_on": "WCAG 2.2 in practice",
+      "is_sample": true
+    },
+    {
+      "sample_id": 31,
+      "name": "Zara Ahmed",
+      "line": "Building a freelance UX research practice, need fintech clients",
+      "speak_on": "Interviewing users on money habits",
+      "is_sample": true
+    },
+    {
+      "sample_id": 32,
+      "name": "Callum Reid",
+      "line": "Building a travel booking app, need an accessibility audit before the European Accessibility Act deadline",
+      "speak_on": "Product-led growth in travel",
+      "is_sample": true
+    },
+    {
+      "sample_id": 33,
+      "name": "Sarah Lindqvist",
+      "line": "Building a booking app for tradespeople as a non-technical founder, need a team to build the MVP backend",
+      "speak_on": "Founding without a technical co-founder",
+      "is_sample": true
+    },
+    {
+      "sample_id": 34,
+      "name": "Jonas Berg",
+      "line": "Building an angel portfolio in home-energy startups after leaving an energy supplier, need pre-seed founders",
+      "speak_on": "How energy retail really works",
+      "is_sample": true
+    },
+    {
+      "sample_id": 35,
+      "name": "Rebecca Moss",
+      "line": "Building the AI team at a UK insurer, need red-team testing before a regulator review",
+      "speak_on": "AI governance in insurance",
+      "is_sample": true
+    },
+    {
+      "sample_id": 36,
+      "name": "Dr Ian Shaw",
+      "line": "Building a digital-primary-care programme for an NHS integrated care board, need vetted triage vendors to pilot",
+      "speak_on": "How NHS buyers choose suppliers",
+      "is_sample": true
+    },
+    {
+      "sample_id": 37,
+      "name": "Kemi Ojo",
+      "line": "Building her volunteering habit as a senior engineer, need a weekend kids' coding group near Hackney",
+      "speak_on": "Career paths into big tech",
+      "is_sample": true
+    },
+    {
+      "sample_id": 38,
+      "name": "Laura Pike",
+      "line": "Building a staff-volunteering programme at a City bank, need tech charities to partner with",
+      "speak_on": "Corporate social impact",
+      "is_sample": true
+    },
+    {
+      "sample_id": 39,
+      "name": "Ade Ogunleye",
+      "line": "Building a computer-vision PhD project on object grasping, need access to a real warehouse dataset",
+      "speak_on": "Vision models for robotics",
+      "is_sample": true
+    },
+    {
+      "sample_id": 40,
+      "name": "Maya Green",
+      "line": "Building a newsletter on climate startups, need founders with real deployment data",
+      "speak_on": "Writing about climate tech without hype",
+      "is_sample": true
+    }
+  ]
+}
