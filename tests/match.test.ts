@@ -135,6 +135,22 @@ describe("planIntros", () => {
     const keys = [...first, ...second].map((x) => `${x.a_id}|${x.b_id}`);
     expect(new Set(keys).size).toBe(keys.length);
   });
+  it("seeded sample members stay available to live joiners; real members keep the strict cap", () => {
+    const s = (id: string, offers: Tag[], seeks: Tag[]) => ({ ...m(id, offers, seeks), is_sample: true });
+    const seeded = [s("a", ["clinical-safety"], ["databases"]), s("b", ["databases"], ["clinical-safety"]), s("c", ["databases"], ["healthtech"]), s("d", ["healthtech"], ["databases"])];
+    // Fill every sample to 2 intros among themselves.
+    const full = [{ a_id: "a", b_id: "b" }, { a_id: "c", b_id: "d" }, { a_id: "a", b_id: "c" }, { a_id: "b", b_id: "d" }];
+    expect(planIntros(seeded, full)).toEqual([]);
+    const live = m("z", ["healthtech"], ["clinical-safety", "databases"]);
+    const out = planIntros([...seeded, live], full, "z");
+    expect(out.length).toBe(2);
+    expect(out.every((x) => x.a_id === "z" || x.b_id === "z")).toBe(true);
+    // A second real joiner can still meet samples, but z (real) is now capped at 2.
+    const live2 = m("y", ["clinical-safety"], ["healthtech"]);
+    const out2 = planIntros([...seeded, live, live2], [...full, ...out], "y");
+    expect(out2.some((x) => x.a_id === "z" || x.b_id === "z")).toBe(false);
+    expect(out2.length).toBeGreaterThan(0);
+  });
   it("uses grounded rerank reasons and drops score-0 pairs", () => {
     const a = m("a", [], [], [], "Building a Postgres sharding tool, need real users");
     const b = m("b", [], [], [], "Building carbon accounting, need Postgres at scale");

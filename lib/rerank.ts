@@ -48,7 +48,7 @@ export async function rerank(newMember: Person, cands: Person[]): Promise<Rerank
   const labels = cands.map((c, i) => ({ key: `c${i + 1}`, c }));
   const prompt = [
     `A person just joined a London community event. Score how useful an in-person intro to each candidate would be, 0-10 (10 = one clearly has what the other needs).`,
-    `For each candidate give exactly 2 reasons, each at most 12 words, addressed to both people. Each reason MUST include "quote": a phrase of 3-8 words copied CHARACTER-FOR-CHARACTER from one of the two lines below (same case and punctuation). Never paraphrase a quote. If nothing fits, score 0 with no reasons. Be terse.`,
+    `For each candidate give exactly 2 reasons, each at most 12 words, addressed to both people. Each reason MUST include "quote": a phrase of 3-8 words copied CHARACTER-FOR-CHARACTER from one of the two lines below (same case and punctuation). Never paraphrase a quote. Only list the 3 best candidates that score 5 or more; omit everyone else. Be terse.`,
     ``,
     `NEW PERSON: ${newMember.name}`,
     `line: ${newMember.line}`,

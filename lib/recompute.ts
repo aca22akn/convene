@@ -9,23 +9,44 @@ export const RERANK_K = 8;
 
 type ExistingIntro = Pick<Intro, "a_id" | "b_id">;
 
-function capacities(members: Member[], existing: ExistingIntro[]) {
+/**
+ * Remaining intro capacity per member. Real members: strictly MAX_INTROS in total.
+ * Sample (seed) members: intros among themselves don't use up capacity toward real joiners,
+ * so a seeded room never "fills up" before the first live person arrives.
+ * `strict` is the plain total-based capacity, used to gate sample–sample pairs.
+ */
+export function capacities(members: Pick<Member, "id" | "is_sample">[], existing: ExistingIntro[]) {
+  const sample = new Map(members.map((m) => [m.id, !!m.is_sample]));
+  const strict = new Map(members.map((m) => [m.id, MAX_INTROS]));
   const cap = new Map(members.map((m) => [m.id, MAX_INTROS]));
   for (const i of existing) {
-    if (cap.has(i.a_id)) cap.set(i.a_id, cap.get(i.a_id)! - 1);
-    if (cap.has(i.b_id)) cap.set(i.b_id, cap.get(i.b_id)! - 1);
+    const bothSample = sample.get(i.a_id) && sample.get(i.b_id);
+    for (const id of [i.a_id, i.b_id]) {
+      if (!strict.has(id)) continue;
+      strict.set(id, strict.get(id)! - 1);
+      if (!bothSample || !sample.get(id)) cap.set(id, cap.get(id)! - 1);
+    }
   }
-  return cap;
+  return { cap, strict, sample };
+}
+
+type Caps = ReturnType<typeof capacities>;
+
+/** Can a new intro between x and y still be made? */
+function pairOpen(c: Caps, x: string, y: string): boolean {
+  if ((c.cap.get(x) ?? 0) <= 0 || (c.cap.get(y) ?? 0) <= 0) return false;
+  if (c.sample.get(x) && c.sample.get(y)) return (c.strict.get(x) ?? 0) > 0 && (c.strict.get(y) ?? 0) > 0;
+  return true;
 }
 
 /** Who the new member's single Grok call should score: top-k by tag score, topped up with zero-overlap people. */
 export function rerankCandidates(members: Member[], existing: ExistingIntro[], newMemberId: string, k = RERANK_K): Member[] {
   const me = members.find((m) => m.id === newMemberId);
-  const cap = capacities(members, existing);
-  if (!me || (cap.get(me.id) ?? 0) <= 0) return [];
+  const caps = capacities(members, existing);
+  if (!me || (caps.cap.get(me.id) ?? 0) <= 0) return [];
   const done = new Set(existing.map((i) => pairKey(i.a_id, i.b_id)));
   return members
-    .filter((o) => o.id !== me.id && (cap.get(o.id) ?? 0) > 0 && !done.has(pairKey(me.id, o.id)))
+    .filter((o) => o.id !== me.id && pairOpen(caps, me.id, o.id) && !done.has(pairKey(me.id, o.id)))
     .map((o) => ({ o, s: tagScore(me, o) }))
     // highest tag score first, then most recent joiners (they are still waiting for intros)
     .sort((p, q) => q.s - p.s || (q.o.created_at > p.o.created_at ? 1 : q.o.created_at < p.o.created_at ? -1 : p.o.id < q.o.id ? -1 : 1))
@@ -42,11 +63,12 @@ export function planIntros(
 ): Omit<Intro, "id" | "created_at">[] {
   if (members.length < 2) return [];
   const eventId = members[0].event_id;
-  const cap = capacities(members, existing);
+  const caps = capacities(members, existing);
+  const cap = caps.cap;
   const eligible = members.filter((m) => (cap.get(m.id) ?? 0) > 0);
   const done = new Set(existing.map((i) => pairKey(i.a_id, i.b_id)));
   const edges = new Map<string, Edge>();
-  for (const e of candidates(eligible)) if (!done.has(pairKey(e.a, e.b))) edges.set(pairKey(e.a, e.b), e);
+  for (const e of candidates(eligible)) if (!done.has(pairKey(e.a, e.b)) && pairOpen(caps, e.a, e.b)) edges.set(pairKey(e.a, e.b), e);
 
   if (newMemberId && rerankMap) {
     const me = members.find((m) => m.id === newMemberId);
@@ -55,7 +77,7 @@ export function planIntros(
       for (const [cid, r] of rerankMap) {
         const other = members.find((m) => m.id === cid);
         if (!other || other.id === me.id || done.has(pairKey(me.id, cid))) continue;
-        if ((cap.get(cid) ?? 0) <= 0 || (cap.get(me.id) ?? 0) <= 0) continue;
+        if (!pairOpen(caps, me.id, cid)) continue;
         const ts = tagScore(me, other);
         const norm = maxTag > 0 ? Math.min(1, ts / maxTag) : 0;
         const [a, b] = me.id < cid ? [me.id, cid] : [cid, me.id];

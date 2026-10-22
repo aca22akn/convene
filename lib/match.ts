@@ -119,7 +119,8 @@ export function assignBlossom(edges: Edge[], capacity?: Map<string, number>, rou
   return chosen.sort(edgeOrder);
 }
 
-const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+const HONORIFIC = /^(dr|mr|mrs|ms|mx|prof|sir|dame)\.?$/i;
+const first = (name: string) => name.trim().split(/\s+/).find((w) => !HONORIFIC.test(w)) || name;
 
 /** Fallback reasons from shared tags; never quoted, so grounded=false. */
 export function templateReasons(a: Pick<Member, "name" | "offers" | "seeks" | "topics">, b: Pick<Member, "name" | "offers" | "seeks" | "topics">): Reason[] {
