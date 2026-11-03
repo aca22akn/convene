@@ -1,15 +1,16 @@
 import { z } from "zod";
 import { admin } from "@/lib/db";
-import { bad, communityForToken, json } from "@/lib/api";
+import { eventFilterForAuth, originMatches, resolveRequestAuth, storeAccessToken, LLM_TOKEN_TTL_SECONDS } from "@/lib/auth";
+import { bad, json } from "@/lib/api";
 import { grok, GROK_MODEL } from "@/lib/grok";
 import { communityGaps, findSpeakers, searchMembers } from "@/lib/mcpTools";
 
 export const maxDuration = 60;
 
-const Body = z.object({ token: z.string().min(1), question: z.string().trim().min(2).max(500) });
+const Body = z.object({ question: z.string().trim().min(2).max(500) });
 
 const INSTRUCTIONS =
-  "You help a London community organiser understand their members. Use the convene MCP tools to look up real members; " +
+  "You help an organiser understand members in the authorised event or community scope. Use the convene MCP tools to look up real members; " +
   "only name people the tools return, quote what they wrote, and say how many events they've attended. Be brief (under 150 words). " +
   "Never invent people or contact details.";
 
@@ -18,21 +19,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const { slug } = await ctx.params;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return bad("invalid input");
-  const { token, question } = parsed.data;
-  const community = await communityForToken(token);
-  const { data: c } = await admin().from("communities").select("id,slug").eq("slug", slug).maybeSingle();
-  if (!community || !c || community.id !== c.id) return bad("unauthorized", 401);
+  const { question } = parsed.data;
+  const auth = await resolveRequestAuth(req);
+  if (auth?.via === "cookie" && !originMatches(req)) return bad("origin mismatch", 403);
+  const { data: c } = await admin().from("communities").select("id,slug,name").eq("slug", slug).maybeSingle();
+  if (!auth || !c) return bad("unauthorized", 401);
+
+  const memberScope = eventFilterForAuth(auth);
+  if (auth.scope.type === "community") {
+    if (auth.scope.communityId !== c.id) return bad("unauthorized", 401);
+  } else {
+    const { data: event } = await admin().from("events").select("id,community_id").eq("id", auth.scope.eventId).maybeSingle();
+    if (!event || event.community_id !== c.id) return bad("unauthorized", 401);
+  }
 
   const client = grok();
   const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin;
   const remote = !/localhost|127\.0\.0\.1/.test(base);
   if (client && remote) {
     try {
+      const llmToken = await storeAccessToken(auth.scope, "llm", LLM_TOKEN_TTL_SECONDS);
       const res = await client.responses.create({
         model: GROK_MODEL,
         instructions: INSTRUCTIONS,
         input: question,
-        tools: [{ type: "mcp", server_url: `${base}/api/mcp`, server_label: "convene", authorization: token, require_approval: "never" }],
+        tools: [{ type: "mcp", server_url: `${base}/api/mcp`, server_label: "convene", authorization: llmToken, require_approval: "never" }],
       });
       if (res.output_text) return json({ answer: res.output_text, via: "grok+mcp" });
     } catch (e) {
@@ -42,9 +53,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
 
   // Fallback: call the same MCP tool functions directly, then let Grok (or a plain formatter) answer.
   const [people, speakers, gaps] = await Promise.all([
-    searchMembers(c.id, question),
-    findSpeakers(c.id, question),
-    communityGaps(c.id),
+    searchMembers(c.id, question, memberScope),
+    findSpeakers(c.id, question, memberScope),
+    communityGaps(c.id, memberScope),
   ]);
   const context = { search_members: people.slice(0, 10), find_speakers: speakers.slice(0, 5), community_gaps: gaps };
   if (client) {

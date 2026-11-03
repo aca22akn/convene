@@ -41,6 +41,7 @@ export function parseLumaCsv(csv: string): { guests: LumaGuest[]; lineColumn: st
       x_handle: null,
       contact,
       contact_consent: false, // Luma registration is not consent to share contact with other members
+      directory_consent: false,
     });
   }
   return { guests, lineColumn, speakColumn };

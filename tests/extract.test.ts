@@ -53,10 +53,17 @@ describe("extract", () => {
 
 describe("personKey", () => {
   it("normalises X handles and contacts", () => {
-    expect(personKey({ x_handle: "@Priya_R" })).toBe("x:priya_r");
-    expect(personKey({ x_handle: "https://x.com/Priya_R" })).toBe("x:priya_r");
-    expect(personKey({ contact: " Priya@Example.com " })).toBe("c:priya@example.com");
-    expect(personKey({ contact: "07700 900123" })).toBe(personKey({ contact: "+44 7700 900123" }));
+    const handleKey = personKey({ x_handle: "@Priya_R" });
+    const emailKey = personKey({ contact: " Priya@Example.com " });
+    const phoneKey = personKey({ contact: "07700 900123" });
+
+    expect(handleKey).toMatch(/^h1:[a-f0-9]{64}$/);
+    expect(personKey({ x_handle: "https://x.com/Priya_R" })).toBe(handleKey);
+    expect(emailKey).toMatch(/^h1:[a-f0-9]{64}$/);
+    expect(emailKey).not.toContain("@");
+    expect(phoneKey).toMatch(/^h1:[a-f0-9]{64}$/);
+    expect(phoneKey).not.toContain("447700900123");
+    expect(phoneKey).toBe(personKey({ contact: "+44 7700 900123" }));
     expect(personKey({})).toBeNull();
   });
 });

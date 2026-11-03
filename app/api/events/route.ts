@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { admin } from "@/lib/db";
 import { bad, json, slugify } from "@/lib/api";
+import { hashToken, tokenHashMatches } from "@/lib/auth";
 
+const MAX_SLUG_ATTEMPTS = 5;
 
 const Body = z.object({
   name: z.string().trim().min(2).max(80),
@@ -18,26 +20,46 @@ export async function POST(req: Request) {
   const { name, community_name, community_token } = parsed.data;
   const db = admin();
   const cslug = slugify(parsed.data.community_slug || community_name || name);
-  let { data: community } = await db.from("communities").select("id,slug,admin_token").eq("slug", cslug).maybeSingle();
+  let { data: community } = await db.from("communities").select("id,slug,admin_token_hash").eq("slug", cslug).maybeSingle();
   let communityToken: string | null = null;
   if (community) {
-    if (community.admin_token !== community_token) return bad("community exists: pass its admin token as community_token", 403);
+    if (!tokenHashMatches(community_token ?? "", community.admin_token_hash)) return bad("community exists: pass its admin token as community_token", 403);
   } else {
+    communityToken = newAdminToken();
     const ins = await db
       .from("communities")
-      .insert({ slug: cslug, name: community_name || name })
-      .select("id,slug,admin_token")
+      .insert({ slug: cslug, name: community_name || name, admin_token_hash: hashToken(communityToken) })
+      .select("id,slug")
       .single();
     if (ins.error) return bad(ins.error.message, 500);
-    community = ins.data;
-    communityToken = community.admin_token;
+    community = { ...ins.data, admin_token_hash: hashToken(communityToken) };
   }
-  const slug = `${slugify(name)}-${randomBytes(2).toString("hex")}`;
-  const { data: ev, error } = await db
-    .from("events")
-    .insert({ slug, name, community_id: community!.id })
-    .select("slug,admin_token")
-    .single();
-  if (error) return bad(error.message, 500);
-  return json({ slug: ev.slug, admin_token: ev.admin_token, community_slug: community!.slug, community_token: communityToken });
+  const eventToken = newAdminToken();
+  let ev: { slug: string } | null = null;
+  let eventError: { code?: string; message: string } | null = null;
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+    const slug = generateEventSlug(name);
+    const result = await db
+      .from("events")
+      .insert({ slug, name, community_id: community!.id, admin_token_hash: hashToken(eventToken) })
+      .select("slug")
+      .single();
+    if (!result.error) {
+      ev = result.data;
+      eventError = null;
+      break;
+    }
+    eventError = result.error;
+    if (result.error.code !== "23505") break;
+  }
+  if (eventError || !ev) return bad(eventError?.message ?? "event creation failed", 500);
+  return json({ slug: ev.slug, admin_token: eventToken, community_slug: community!.slug, community_token: communityToken });
+}
+
+export function generateEventSlug(name: string): string {
+  return `${slugify(name)}-${randomBytes(6).toString("hex")}`;
+}
+
+export function newAdminToken(): string {
+  return randomBytes(32).toString("base64url");
 }

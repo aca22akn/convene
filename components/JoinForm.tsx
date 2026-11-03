@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Brand } from "./Brand";
 
@@ -13,16 +13,23 @@ export function JoinForm({ slug }: { slug: string }) {
   const [xHandle, setXHandle] = useState("");
   const [speakOn, setSpeakOn] = useState("");
   const [consent, setConsent] = useState(false);
+  const [directoryConsent, setDirectoryConsent] = useState(false);
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<string | null>(null);
-
-  useEffect(() => {
+  const subscribeToStoredMember = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange);
+    return () => window.removeEventListener("storage", onStoreChange);
+  }, []);
+  const getStoredMember = useCallback(() => {
     try {
-      setExisting(localStorage.getItem(`convene:${slug}`));
-    } catch {}
+      return localStorage.getItem(`convene:${slug}`) ?? "";
+    } catch {
+      return "";
+    }
   }, [slug]);
+  const storedMember = useSyncExternalStore(subscribeToStoredMember, getStoredMember, () => null);
+  const existing = storedMember || null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +46,7 @@ export function JoinForm({ slug }: { slug: string }) {
           speak_on: speakOn.trim() || null,
           contact: consent ? contact.trim() || null : null,
           contact_consent: consent && !!contact.trim(),
+          directory_consent: directoryConsent,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -102,14 +110,29 @@ export function JoinForm({ slug }: { slug: string }) {
             <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
             <span className="text-white/80">Share my contact with the organiser so they can add me to the community WhatsApp</span>
           </label>
-          <input
-            className={`${inputCls} mt-3 disabled:opacity-40`}
-            disabled={!consent}
-            maxLength={120}
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            placeholder="Phone or email"
-          />
+          <label className="mt-3 block">
+            <span className="mb-1 block text-sm font-medium text-white/80">Phone or email</span>
+            <input
+              className={`${inputCls} disabled:opacity-40`}
+              disabled={!consent}
+              maxLength={120}
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              autoComplete="email"
+            />
+          </label>
+        </div>
+        <div className="rounded-xl border border-white/10 p-4">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-5 w-5 accent-emerald-400"
+              checked={directoryConsent}
+              onChange={(e) => setDirectoryConsent(e.target.checked)}
+            />
+            <span className="text-white/80">Show me in the community directory</span>
+          </label>
+          <p className="mt-2 pl-8 text-sm text-white/55">If you opt in, the public directory shows your name, X handle, event line, talk topic, and the number of events where you opted in. Contact sharing is separate.</p>
         </div>
         {error && <p className="rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
         <button disabled={busy} className="w-full rounded-xl bg-emerald-400 py-4 text-lg font-semibold text-black disabled:opacity-60">

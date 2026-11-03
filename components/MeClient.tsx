@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { MeView } from "@/lib/types";
 import { mockMe } from "@/lib/mocks";
 import { useLive } from "@/lib/useLive";
@@ -8,16 +8,20 @@ import { Brand } from "./Brand";
 import { Quoted } from "./Quoted";
 
 export function MeClient({ slug, id: idProp, mock }: { slug: string; id: string | null; mock: boolean }) {
-  const [id, setId] = useState<string | null>(idProp);
-  const [checked, setChecked] = useState(!!idProp);
-
-  useEffect(() => {
-    if (idProp) return;
+  const subscribeToStoredId = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange);
+    return () => window.removeEventListener("storage", onStoreChange);
+  }, []);
+  const getStoredId = useCallback(() => {
     try {
-      setId(localStorage.getItem(`convene:${slug}`));
-    } catch {}
-    setChecked(true);
-  }, [idProp, slug]);
+      return localStorage.getItem(`convene:${slug}`) ?? "";
+    } catch {
+      return "";
+    }
+  }, [slug]);
+  const storedId = useSyncExternalStore(subscribeToStoredId, getStoredId, () => null);
+  const id = idProp ?? (storedId || null);
+  const checked = idProp !== null || storedId !== null;
 
   const { data, error } = useLive<MeView>(id ? `/api/e/${slug}/me?id=${encodeURIComponent(id)}` : null, {
     mock: mock ? mockMe : undefined,

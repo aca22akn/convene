@@ -1,19 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { inputCls } from "./JoinForm";
 
-type Created = { slug: string; admin_token: string; community_slug: string };
+type Created = { slug: string; admin_token: string; community_slug: string; community_token: string | null };
 
 export function CreateEvent() {
   const [name, setName] = useState("");
   const [communityName, setCommunityName] = useState("");
   const [communitySlug, setCommunitySlug] = useState("");
+  const [communityToken, setCommunityToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -26,6 +24,7 @@ export function CreateEvent() {
           name,
           community_name: communityName.trim() || undefined,
           community_slug: communitySlug.trim() || undefined,
+          community_token: communityToken.trim() || undefined,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -39,18 +38,20 @@ export function CreateEvent() {
   }
 
   if (created) {
+    const origin = window.location.origin;
     const links = [
       ["Stage (put this on the projector)", `${origin}/e/${created.slug}/stage`],
       ["Join link (the QR points here)", `${origin}/e/${created.slug}`],
-      ["Organiser dashboard (private: keep this link)", `${origin}/e/${created.slug}/organiser?token=${created.admin_token}`],
+      ["Organiser dashboard (private: keep this link)", `${origin}/e/${created.slug}/organiser#t=${created.admin_token}`],
       ["Community directory", `${origin}/c/${created.community_slug}`],
     ];
     return (
       <section className="mt-14 rounded-2xl border border-emerald-400/30 bg-emerald-400/5 p-6">
         <h2 className="text-2xl font-semibold">Your event is ready</h2>
         <p className="mt-2 rounded-lg bg-amber-400/10 px-3 py-2 text-amber-200">
-          Save the organiser link now. Its token is the only key to exports, deletion and the MCP server.
+          Save the organiser link now. Its token is shown only once and gives access to this event.
         </p>
+        {created.community_token && <p className="mt-2 break-all rounded-lg bg-amber-400/10 px-3 py-2 font-mono text-amber-100">Community token (save separately): {created.community_token}</p>}
         <ul className="mt-4 space-y-3">
           {links.map(([label, url]) => (
             <li key={label}>
@@ -70,6 +71,7 @@ export function CreateEvent() {
         <input className={`${inputCls} sm:col-span-2`} required maxLength={80} placeholder="Event name, e.g. Agents Night #12" value={name} onChange={(e) => setName(e.target.value)} />
         <input className={inputCls} maxLength={80} placeholder="Community name (new)" value={communityName} onChange={(e) => setCommunityName(e.target.value)} />
         <input className={inputCls} maxLength={60} placeholder="…or existing community slug" value={communitySlug} onChange={(e) => setCommunitySlug(e.target.value)} autoCapitalize="off" />
+        <input className={`${inputCls} sm:col-span-2`} maxLength={128} placeholder="Existing community token (if joining one)" value={communityToken} onChange={(e) => setCommunityToken(e.target.value)} autoCapitalize="off" autoComplete="off" />
         {error && <p className="text-red-300 sm:col-span-2">{error}</p>}
         <button disabled={busy} className="rounded-xl bg-emerald-400 py-3 font-semibold text-black disabled:opacity-60 sm:col-span-2">
           {busy ? "Creating…" : "Create event"}

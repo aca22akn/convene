@@ -1,6 +1,7 @@
 // Recompute intros for an event after a join. Existing intros are fixed; only new pairs are added.
 import { admin } from "./db";
 import { assignBlossom, candidates, pairKey, tagScore, templateReasons } from "./match";
+import { notifyEvent } from "./realtime";
 import { rerank, rerankWeight, type RerankResult } from "./rerank";
 import type { Edge, Intro, Member } from "./types";
 
@@ -126,5 +127,9 @@ export async function recompute(eventId: string, newMemberId?: string): Promise<
     .upsert(planned, { onConflict: "event_id,a_id,b_id", ignoreDuplicates: true })
     .select();
   if (error) throw error;
-  return (data ?? []) as Intro[];
+  const inserted = (data ?? []) as Intro[];
+  if (inserted.length > 0) {
+    await notifyEvent(eventId).catch((e) => console.error("[recompute] realtime notify failed", e));
+  }
+  return inserted;
 }

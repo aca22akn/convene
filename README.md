@@ -40,12 +40,14 @@ Today almost every London community runs on **Luma for events and WhatsApp for t
 ## Self-host in 5 minutes
 
 1. **Fork / clone** this repo and `npm install`.
-2. **Supabase:** create a project, then either `npx supabase link --project-ref <ref> && npx supabase db push`, or paste [`supabase/migrations/20261022190000_init.sql`](supabase/migrations/20261022190000_init.sql) into the SQL editor.
-3. **Env:** `cp .env.example .env.local` and fill in the Supabase URL, anon key and service-role key. `XAI_API_KEY` is optional — without it Convene uses keyword extraction and tag-only matching.
+2. **Supabase:** create a project, link it with `npx supabase link --project-ref <ref>`, then apply every standard timestamped migration with `npx supabase db push`. For SQL-editor setup, apply all `*.sql` migrations in timestamp order; the initial migration alone is not a complete schema.
+3. **Env:** `cp .env.example .env.local` and set the Supabase URL, anon key, service-role key, a stable, random `PERSON_KEY_PEPPER`, and a separate random `PUBLIC_ID_SECRET`. Keep the pepper unchanged and backed up; changing it requires rehashing existing person keys, and losing it makes existing person keys unrecoverable. Keep `PUBLIC_ID_SECRET` stable so live graph IDs remain stable. `XAI_API_KEY` is optional — without it Convene uses keyword extraction and tag-only matching.
 4. **Try it locally:** `npm run seed` (loads 40 fictional sample members into event `demo`), `npm run dev`, open http://localhost:3000/e/demo/stage.
-5. **Deploy:** `vercel` (or import the repo in Vercel), add the same env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, `vercel --prod`.
+5. **Deploy:** Before the first Vercel deploy, set `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` for both **Production** and **Preview** in Project Settings → Environment Variables. The production build throws if `PERSON_KEY_PEPPER` is missing, and `PUBLIC_ID_SECRET` is required in production to generate opaque live IDs. Back up `PERSON_KEY_PEPPER` securely; losing it makes existing person keys unrecoverable. Then run `vercel` (or import the repo in Vercel), add the other env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, and deploy with `vercel --prod`.
 
-Create an event from the home page; save the organiser link it shows (it contains the admin token).
+See the [deployment runbook](docs/DEPLOY-HARDENING.md) for secret setup and existing-install steps.
+
+Create an event from the home page; save the organiser link it shows. The event token is carried in the URL fragment, exchanged for a 12-hour server-side session, and never sent in the page request. A community token is shown separately when a community is created.
 
 ## Architecture
 
@@ -60,8 +62,8 @@ flowchart LR
   C2 --> G[Grounding check:<br/>quote ⊂ a line?]
   G --> B[Edmonds blossom ×2 rounds<br/>≤ 2 intros each]
   B --> DB
-  DB -- realtime + 3s poll --> ME[/me: your 2 people/]
-  DB -- realtime + 3s poll --> ST[/stage: QR, graph, feed/]
+  Server -- private broadcast + 3s polling fallback --> ME[/me: your 2 people/]
+  Server -- private broadcast + 3s polling fallback --> ST[/stage: QR, graph, feed/]
   DB --> O[/organiser: needs vs offers,<br/>speaker inbox, vcf/csv, delete/]
   DB --> MCP[/api/mcp read-only tools/]
   MCP --> A[Ask your community<br/>Grok Responses API + MCP]
@@ -79,20 +81,25 @@ flowchart LR
 ## Privacy
 
 - Nothing is ever sent to anyone. Convene shows intros on screens; it never emails, messages or posts.
-- Contact details are optional, only stored with an explicit consent tick, never exposed to the public API (column-level grants), and only exported in `contacts.vcf` to the organiser's token.
+- Contact details are optional, stored only with an explicit consent tick, never exposed by the public API, and exported in `contacts.vcf` only to the organiser.
+- The community directory shows only people who opt in on the join form. Luma-imported members and anyone who leaves the box unchecked are excluded.
 - Luma-imported emails are stored as non-consenting and are not exported.
 - The organiser can delete all data for an event with one button. Data lives in the community's own Supabase.
 - Lines are sent to xAI for extraction and reranking when `XAI_API_KEY` is set; leave it empty to keep everything in your own infrastructure.
 
 ## MCP
 
-`/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
+`/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. An event token sees that event only; a community token sees all events in that community. The organiser dashboard uses an HttpOnly 12-hour session cookie. The Ask box gives xAI a short-lived, read-only, scope-bound MCP token instead of the organiser token. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
 
 ```json
 { "mcpServers": { "convene": { "url": "https://<your-app>/api/mcp", "headers": { "Authorization": "Bearer <token>" } } } }
 ```
 
 The organiser page's **Ask your community** box calls the Grok Responses API with this server attached as an MCP tool.
+
+### Upgrading an existing installation
+
+Before deploying this version, configure the same persistent `PERSON_KEY_PEPPER` for the maintenance command and every app instance, and configure `PUBLIC_ID_SECRET` for Production and Preview. The production build throws when `PERSON_KEY_PEPPER` is missing. Back up the pepper securely: losing it makes existing person keys unrecoverable. Apply the expand migrations with `npx supabase db push`. Then pause joins and imports and wait for all old app instances to drain; keep writes paused through the rehash and deployment so no old instance can create another raw person key. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people`. Deploy the new app with that same pepper, verify organiser links and returning-member identity, and resume writes. Finally, apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to remove the legacy plaintext token columns. Do not apply the manual contract before the hash-based app is deployed and verified.
 
 ## Evaluation
 
@@ -121,7 +128,9 @@ Note: the keyword fallback was written while looking at this same sample data, s
 - **Concurrency.** Two people joining at the same instant can, rarely, push someone to 3 intros (no row lock); duplicate pairs are prevented by a unique constraint.
 - **Fixed vocabulary.** 40 tags cover the London tech-community lines we saw; niche needs fall back to Grok's reasons and the "topics" overlap.
 - **Demo room.** Sample members are fictional (`is_sample`). Once real people join, intros between two sample members stop counting toward capacity, so live joiners can still be matched to the best sample people.
-- **Auth.** Organiser access is a bearer token in the URL — fine for one-night events, not for long-lived sensitive communities. Rotate by editing `admin_token` in Supabase.
+- **Auth.** Event and community admin tokens are stored as SHA-256 hashes. Organiser links exchange their fragment token for a 12-hour HttpOnly session. Event tokens are scoped to one event; community tokens cover all events in that community. Old `?token=` organiser links are exchanged once and redirected to the clean URL.
+- **Token migration staging.** Run `supabase db push` to apply the expand migration before deploying the hash-based app. It preserves the legacy database defaults and uses triggers so old app inserts still receive their tokens while their hashes are backfilled; new hash-based writes clear the generated plaintext value. After deploying the hash-based app, verify legacy organiser links through the exchange flow, then manually apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to drop the triggers and plaintext columns. The `.sql.manual` file is intentionally excluded from ordinary `db push`.
+- Legacy token values reused across rows are reduced to one deterministic scope before unique indexes are added. Values matching a community token stay community-scoped; other duplicate event values remain bound to one event row because a reused token cannot safely express multiple strict scopes.
 - Lines are free text and shown publicly on the stage screen; tell people that before they type.
 
 ## Tests

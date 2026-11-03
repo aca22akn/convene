@@ -18,12 +18,13 @@ export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean })
     <main className="mx-auto w-full max-w-5xl p-5 lg:p-8">
       <Brand />
       <h1 className="mt-6 text-3xl font-bold">{data?.community.name ?? slug}</h1>
-      <p className="text-white/60">{data?.people.length ?? 0} members, remembered across events.</p>
+      <p className="text-white/60">{data?.total ?? data?.people.length ?? 0} members opted into the directory.</p>
+      <p className="mt-1 text-sm text-white/45">Only members who opt in appear in this directory.</p>
       {error && !data && <p className="mt-4 text-red-300">{error}</p>}
       <input className={`${inputCls} mt-6`} placeholder="Search names, what people build, talks…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <ul className="mt-6 divide-y divide-white/10 rounded-2xl border border-white/10">
-        {people.map((p) => (
-          <li key={p.person_id} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-start sm:gap-4">
+        {people.map((p, index) => (
+          <li key={`${p.name}-${index}`} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-start sm:gap-4">
             <div className="sm:w-56 sm:shrink-0">
               <p className="font-semibold">{p.name}</p>
               {p.x_handle && (

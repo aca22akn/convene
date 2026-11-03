@@ -25,6 +25,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     : [];
   const byId = new Map(others.map((m) => [m.id, m]));
   const view: MeView = {
+    event: { id: ev.id },
     member: me as MeView["member"],
     matches: list.flatMap((i) => {
       const o = byId.get(i.a_id === id ? i.b_id : i.a_id);

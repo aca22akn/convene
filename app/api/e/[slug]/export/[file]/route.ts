@@ -1,15 +1,16 @@
 import { admin } from "@/lib/db";
-import { bad, eventMembers, getEvent, tokenOk } from "@/lib/api";
+import { authorizeEventRequest } from "@/lib/auth";
+import { bad, eventMembers, getEvent } from "@/lib/api";
 import { buildIntrosCsv, buildMembersCsv, buildVcf } from "@/lib/export";
 import type { Intro } from "@/lib/types";
 
 
 export async function GET(req: Request, ctx: { params: Promise<{ slug: string; file: string }> }) {
   const { slug, file } = await ctx.params;
-  const token = new URL(req.url).searchParams.get("token");
   const ev = await getEvent(slug);
   if (!ev) return bad("event not found", 404);
-  if (!(await tokenOk(ev, token))) return bad("unauthorized", 401);
+  const access = await authorizeEventRequest(req, ev);
+  if (access.status !== 200) return bad("unauthorized", 401);
   const members = await eventMembers(ev.id, true);
   let body: string;
   let type: string;

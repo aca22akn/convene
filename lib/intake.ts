@@ -28,6 +28,7 @@ export async function insertMembers(
         speak_on: r.speak_on || null,
         contact: r.contact_consent ? r.contact || null : null,
         contact_consent: !!(r.contact_consent && r.contact),
+        directory_consent: !!r.directory_consent,
         offers: tags.offers,
         seeks: tags.seeks,
         topics: tags.topics,

@@ -1,0 +1,12 @@
+-- Contract phase: apply manually only after the hash-based application is deployed and
+-- existing organiser links have been verified through the exchange flow.
+drop trigger if exists communities_admin_token_hash_insert on public.communities;
+drop trigger if exists communities_admin_token_hash_legacy_update on public.communities;
+drop trigger if exists communities_admin_token_hash_new_update on public.communities;
+drop trigger if exists events_admin_token_hash_insert on public.events;
+drop trigger if exists events_admin_token_hash_legacy_update on public.events;
+drop trigger if exists events_admin_token_hash_new_update on public.events;
+drop function if exists public.sync_admin_token_hash();
+
+alter table public.communities drop column if exists admin_token;
+alter table public.events drop column if exists admin_token;

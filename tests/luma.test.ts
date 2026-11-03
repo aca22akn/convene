@@ -21,6 +21,7 @@ describe("parseLumaCsv", () => {
     expect(priya.guest_id).toBe("gst-sample001");
     expect(priya.contact).toBe("priya.raman@example.com");
     expect(priya.contact_consent).toBe(false);
+    expect(priya.directory_consent).toBe(false);
   });
 
   it("accepts guest_id and first/last name columns", () => {

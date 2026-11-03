@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "node scripts/test-integration.mjs",
+    "test:e2e": "node scripts/test-e2e.mjs",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "rehash:people": "tsx --env-file-if-exists=.env.local scripts/rehash-people.ts",
+    "rehash:people:dry-run": "tsx --env-file-if-exists=.env.local scripts/rehash-people.ts --dry-run",
     "eval": "tsx --env-file-if-exists=.env.local scripts/eval.ts"
   },
   "dependencies": {
@@ -27,7 +32,11 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/turbopack": "^4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.19.2",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
@@ -35,6 +44,8 @@
     "dotenv": "^18.0.9",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "jsdom": "^29.1.1",
+    "supabase": "^3.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",

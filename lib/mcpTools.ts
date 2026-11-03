@@ -44,7 +44,19 @@ export function summarisePeople(rows: (CommunityMember & { event_slug?: string }
     if (!evCount.has(pid)) evCount.set(pid, new Set());
     evCount.get(pid)!.add(m.event_id);
   }
-  return [...by.values()].map(({ _t, ...p }) => ({ ...p, events_count: evCount.get(p.person_id)!.size }));
+  return [...by.values()].map((p) => ({
+    person_id: p.person_id,
+    member_id: p.member_id,
+    name: p.name,
+    x_handle: p.x_handle,
+    line: p.line,
+    speak_on: p.speak_on,
+    offers: p.offers,
+    seeks: p.seeks,
+    speak_topics: p.speak_topics,
+    event_slugs: p.event_slugs,
+    events_count: evCount.get(p.person_id)!.size,
+  }));
 }
 
 const words = (q: string) => q.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
@@ -99,9 +111,17 @@ export function pairScore(i: Pick<PersonSummary, "offers" | "seeks"> & { topics?
 
 // ---------- DB loaders ----------
 
-export async function loadCommunityRows(communityId: string): Promise<(CommunityMember & { event_slug: string })[]> {
+export type MemberScopeFilter = { eventIds?: string[] };
+
+export async function loadCommunityRows(communityId: string | null, scope: MemberScopeFilter = {}): Promise<(CommunityMember & { event_slug: string })[]> {
   const db = admin();
-  const { data: evs } = await db.from("events").select("id,slug").eq("community_id", communityId);
+  if (scope.eventIds && scope.eventIds.length === 0) return [];
+  let eventQuery = db.from("events").select("id,slug");
+  if (scope.eventIds) eventQuery = eventQuery.in("id", scope.eventIds);
+  else if (communityId) eventQuery = eventQuery.eq("community_id", communityId);
+  else return [];
+  const { data: evs, error: eventError } = await eventQuery;
+  if (eventError) throw eventError;
   if (!evs?.length) return [];
   const slugOf = new Map(evs.map((e) => [e.id as string, e.slug as string]));
   const { data, error } = await db.from("members").select(PUBLIC_MEMBER_COLS).in("event_id", [...slugOf.keys()]);
@@ -114,29 +134,31 @@ const brief = (p: PersonSummary) => ({
   offers: p.offers, seeks: p.seeks, seen_at_events: p.events_count,
 });
 
-export async function searchMembers(communityId: string, query: string) {
-  const people = summarisePeople(await loadCommunityRows(communityId));
+export async function searchMembers(communityId: string | null, query: string, scope: MemberScopeFilter = {}) {
+  const people = summarisePeople(await loadCommunityRows(communityId, scope));
   return rankSearch(people, query).slice(0, 15).map(brief);
 }
 
-export async function findSpeakers(communityId: string, topic: string) {
-  const people = summarisePeople(await loadCommunityRows(communityId));
+export async function findSpeakers(communityId: string | null, topic: string, scope: MemberScopeFilter = {}) {
+  const people = summarisePeople(await loadCommunityRows(communityId, scope));
   return rankSpeakersFor(people, topic).slice(0, 10).map(brief);
 }
 
-export async function communityGaps(communityId: string) {
-  const people = summarisePeople(await loadCommunityRows(communityId));
+export async function communityGaps(communityId: string | null, scope: MemberScopeFilter = {}) {
+  const people = summarisePeople(await loadCommunityRows(communityId, scope));
   return { members: people.length, gaps: gaps(people).slice(0, 15) };
 }
 
-export async function suggestIntros(communityId: string, memberId: string) {
-  const rows = await loadCommunityRows(communityId);
+export async function suggestIntros(communityId: string | null, memberId: string, scope: MemberScopeFilter = {}) {
+  const rows = await loadCommunityRows(communityId, scope);
   const me = rows.find((r) => r.id === memberId);
   if (!me) return { error: "member not found in this community" };
-  const { data: intros } = await admin()
+  let introQuery = admin()
     .from("intros")
     .select("a_id,b_id,score,reasons")
     .or(`a_id.eq.${memberId},b_id.eq.${memberId}`);
+  if (scope.eventIds) introQuery = introQuery.in("event_id", scope.eventIds);
+  const { data: intros } = await introQuery;
   const byId = new Map(rows.map((r) => [r.id, r]));
   const existing = (intros ?? []).map((i) => {
     const other = byId.get(i.a_id === memberId ? i.b_id : i.a_id);

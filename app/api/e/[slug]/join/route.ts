@@ -4,6 +4,7 @@ import { bad, getEvent, json } from "@/lib/api";
 import { extract } from "@/lib/extract";
 import { personKey, upsertPerson } from "@/lib/people";
 import { recompute } from "@/lib/recompute";
+import { notifyEvent } from "@/lib/realtime";
 import { JoinInput } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -35,6 +36,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
       speak_on: input.speak_on?.trim() || null,
       contact: input.contact_consent ? contact : null, // contact is only stored when they agreed to share it
       contact_consent: input.contact_consent && !!contact,
+      directory_consent: input.directory_consent,
       offers: tags.offers,
       seeks: tags.seeks,
       topics: tags.topics,
@@ -46,9 +48,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const member_id = data.id as string;
   after(async () => {
     try {
-      await recompute(ev.id, member_id);
+      await notifyEvent(ev.id);
     } catch (e) {
-      console.error("[join] recompute failed", e);
+      console.error("[join] realtime notify failed", e);
+    }
+    try {
+      await recompute(ev.id, member_id);
+      await notifyEvent(ev.id);
+    } catch (e) {
+      console.error("[join] recompute or realtime notify failed", e);
     }
   });
   return json({ member_id, extraction: tags.source });

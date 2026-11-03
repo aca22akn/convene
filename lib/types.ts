@@ -20,6 +20,7 @@ export const JoinInput = z.object({
   speak_on: z.string().trim().max(160).optional().nullable(),
   contact: z.string().trim().max(120).optional().nullable(),
   contact_consent: z.boolean().default(false),
+  directory_consent: z.boolean().default(false),
 });
 export type JoinInput = z.infer<typeof JoinInput>;
 
@@ -61,6 +62,7 @@ export const Member = z.object({
   speak_on: z.string().nullable().optional(),
   contact: z.string().nullable().optional(),
   contact_consent: z.boolean().default(false),
+  directory_consent: z.boolean().optional(),
   offers: z.array(Tag),
   seeks: z.array(Tag),
   topics: z.array(Tag),
@@ -101,6 +103,7 @@ export type Edge = {
 
 /** /me payload */
 export type MeView = {
+  event: { id: string };
   member: Pick<Member, "id" | "name" | "line">;
   matches: { member: Pick<Member, "id" | "name" | "line" | "x_handle">; reasons: Reason[] }[];
 };

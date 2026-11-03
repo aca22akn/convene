@@ -1,21 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { mockLive, type LiveView } from "@/lib/mocks";
 import { useLive } from "@/lib/useLive";
-import { firstName, headlineQuote } from "@/lib/ui";
 import { Brand } from "./Brand";
 import { Graph } from "./Graph";
 
-export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
+const subscribeToLocation = () => () => {};
+const getOrigin = () => window.location.origin;
+const getServerOrigin = () => "";
 
-  const [eventId, setEventId] = useState<string | null>(null);
-  const { data, error } = useLive<LiveView>(`/api/e/${slug}/live`, { mock: mock ? mockLive : undefined, eventId });
-  useEffect(() => {
-    if (data?.event.id) setEventId(data.event.id);
-  }, [data?.event.id]);
+export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
+  const origin = useSyncExternalStore(subscribeToLocation, getOrigin, getServerOrigin);
+  const { data, error } = useLive<LiveView>(`/api/e/${slug}/live`, { mock: mock ? mockLive : undefined });
 
   const joinUrl = origin ? `${origin}/e/${slug}` : "";
   const members = data?.members ?? [];
@@ -55,10 +52,10 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
               return (
                 <li key={`${i.a_id}-${i.b_id}`} className="animate-in-soft text-2xl leading-snug">
                   <span className="font-semibold">
-                    {a ? firstName(a.name) : "?"} ↔ {b ? firstName(b.name) : "?"}
+                    {a?.display_name ?? "?"} ↔ {b?.display_name ?? "?"}
                   </span>
                   <span className="text-white/45"> · </span>
-                  <span className="text-amber-200">{headlineQuote(i.reasons)}</span>
+                  <span className="text-amber-200">{i.headline}</span>
                 </li>
               );
             })}

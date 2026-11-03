@@ -1,13 +1,14 @@
 import { admin } from "@/lib/db";
-import { bad, eventMembers, getEvent, json, rankSpeakers, tagCounts, tokenOk } from "@/lib/api";
+import { authorizeEventRequest } from "@/lib/auth";
+import { bad, eventMembers, getEvent, json, rankSpeakers, tagCounts } from "@/lib/api";
 
 
 export async function GET(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
-  const token = new URL(req.url).searchParams.get("token");
   const ev = await getEvent(slug);
   if (!ev) return bad("event not found", 404);
-  if (!(await tokenOk(ev, token))) return bad("unauthorized", 401);
+  const access = await authorizeEventRequest(req, ev);
+  if (access.status !== 200) return bad("unauthorized", 401);
   const db = admin();
   const [members, intros, community] = await Promise.all([
     eventMembers(ev.id),

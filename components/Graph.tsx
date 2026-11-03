@@ -2,7 +2,6 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { LiveIntro, LiveMember } from "@/lib/mocks";
-import { firstName } from "@/lib/ui";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
@@ -25,7 +24,7 @@ function PlainList({ members, intros }: { members: LiveMember[]; intros: LiveInt
     <ul className="h-full space-y-2 overflow-auto p-4 text-xl">
       {intros.map((i) => (
         <li key={`${i.a_id}-${i.b_id}`}>
-          {byId.get(i.a_id)?.name ?? "?"} ↔ {byId.get(i.b_id)?.name ?? "?"}
+          {byId.get(i.a_id)?.display_name ?? "?"} ↔ {byId.get(i.b_id)?.display_name ?? "?"}
         </li>
       ))}
     </ul>
@@ -45,23 +44,13 @@ export function Graph({ members, intros }: { members: LiveMember[]; intros: Live
     return () => ro.disconnect();
   }, []);
 
-  // Keep node objects stable across polls so the simulation doesn't restart on every refresh.
-  const cache = useRef(new Map<string, Node>());
   const data = useMemo(() => {
     const deg = new Map<string, number>();
     for (const i of intros) {
       deg.set(i.a_id, (deg.get(i.a_id) ?? 0) + 1);
       deg.set(i.b_id, (deg.get(i.b_id) ?? 0) + 1);
     }
-    const nodes = members.map((m) => {
-      let n = cache.current.get(m.id);
-      if (!n) {
-        n = { id: m.id, name: firstName(m.name), deg: 0 };
-        cache.current.set(m.id, n);
-      }
-      n.deg = deg.get(m.id) ?? 0;
-      return n;
-    });
+    const nodes = members.map((m) => ({ id: m.id, name: m.display_name, deg: deg.get(m.id) ?? 0 }));
     const ids = new Set(nodes.map((n) => n.id));
     const links: Link[] = intros.filter((i) => ids.has(i.a_id) && ids.has(i.b_id)).map((i) => ({ source: i.a_id, target: i.b_id }));
     return { nodes, links };

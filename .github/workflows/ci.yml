@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, types, unit tests, build, audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Build with dummy credentials
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+          PUBLIC_ID_SECRET: ci-placeholder-public-id-secret
+          XAI_API_KEY: ci-placeholder-xai-key
+          PERSON_KEY_PEPPER: ci-placeholder-person-key-pepper
+          CRON_SECRET: ci-placeholder-cron-secret
+          NEXT_PUBLIC_BASE_URL: http://127.0.0.1:3173
+          MAX_MEMBERS_PER_EVENT: "200"
+          AI_DAILY_CALL_LIMIT: "3000"
+          RETENTION_DAYS: "365"
+
+  integration:
+    name: Supabase local integration tests
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      SUPABASE_HOME: ${{ github.workspace }}/.supabase-home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v3
+      - name: Start local Supabase
+        run: |
+          supabase start > "$RUNNER_TEMP/supabase-start.log" 2>&1 || {
+            node scripts/print-sanitized-log.mjs "$RUNNER_TEMP/supabase-start.log"
+            exit 1
+          }
+      - name: Verify token migration against legacy rows, then apply all migrations
+        run: node scripts/test-token-migration-upgrade.mjs > "$RUNNER_TEMP/supabase-migration-test.log" 2>&1
+      - run: npm run test:integration
+      - name: Upload local Supabase logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-integration-logs
+          path: ${{ runner.temp }}/supabase-migration-test.log
+          if-no-files-found: ignore
+
+  e2e:
+    name: Playwright mock-mode tests
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/convene-playwright-browsers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
