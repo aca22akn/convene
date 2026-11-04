@@ -5,6 +5,7 @@ import { service } from "../integration/helpers";
 const communityToken = "local-migration-fixture-community-token";
 const eventToken = "local-migration-fixture-event-token";
 const duplicateEventToken = "local-migration-fixture-duplicate-event-token";
+const communityId = "10000000-0000-4000-8000-000000000010";
 
 describe("token expand migration upgrade path", () => {
   it("backfills legacy tokens, resolves their original scopes, and clears reused event scopes", async () => {
@@ -19,7 +20,8 @@ describe("token expand migration upgrade path", () => {
       .from("events")
       .select("id,admin_token_hash")
       .eq("community_id", community.id)
-      .in("slug", ["migration-upgrade-shared-a", "migration-upgrade-shared-b"]);
+      .in("slug", ["migration-upgrade-shared-a", "migration-upgrade-shared-b"])
+      .order("slug");
     if (sharedEventsError) throw sharedEventsError;
 
     const { data: scopedEvent, error: scopedEventError } = await service
@@ -36,9 +38,15 @@ describe("token expand migration upgrade path", () => {
       .order("id");
     if (duplicateEventsError) throw duplicateEventsError;
 
+    expect(community.id).toBe(communityId);
     expect(community.admin_token_hash).toBe(hashToken(communityToken));
     expect(sharedEvents).toHaveLength(2);
+    expect(sharedEvents?.map((event) => event.id)).toEqual([
+      "10000000-0000-4000-8000-000000000003",
+      "10000000-0000-4000-8000-000000000004",
+    ]);
     expect(sharedEvents?.every((event) => event.admin_token_hash === null)).toBe(true);
+    expect(scopedEvent.id).toBe("10000000-0000-4000-8000-000000000005");
     expect(scopedEvent.admin_token_hash).toBe(hashToken(eventToken));
     expect(duplicateEvents).toHaveLength(2);
     expect(duplicateEvents?.[0]).toMatchObject({
@@ -51,15 +59,15 @@ describe("token expand migration upgrade path", () => {
     });
 
     await expect(resolveAdminToken(communityToken)).resolves.toMatchObject({
-      scope: { type: "community", communityId: community.id },
+      scope: { type: "community", communityId },
       kind: "admin",
     });
     await expect(resolveAdminToken(eventToken)).resolves.toMatchObject({
-      scope: { type: "event", eventId: scopedEvent.id, communityId: scopedEvent.community_id },
+      scope: { type: "event", eventId: "10000000-0000-4000-8000-000000000005", communityId },
       kind: "admin",
     });
     await expect(resolveAdminToken(duplicateEventToken)).resolves.toMatchObject({
-      scope: { type: "event", eventId: "10000000-0000-4000-8000-000000000001", communityId: community.id },
+      scope: { type: "event", eventId: "10000000-0000-4000-8000-000000000001", communityId },
       kind: "admin",
     });
   });

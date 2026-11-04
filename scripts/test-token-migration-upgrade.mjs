@@ -143,15 +143,39 @@ async function main() {
     const duplicateEventToken = "local-migration-fixture-duplicate-event-token";
     const { data: community, error: communityError } = await service
       .from("communities")
-      .insert({ slug: "migration-upgrade-fixture", name: "Migration fixture", admin_token: communityToken })
+      .insert({
+        id: "10000000-0000-4000-8000-000000000010",
+        slug: "migration-upgrade-fixture",
+        name: "Migration fixture",
+        admin_token: communityToken,
+      })
       .select("id")
       .single();
     if (communityError) throw communityError;
 
+    // Give every row an id because PostgREST uses one column set for this batch.
     const { error: eventError } = await service.from("events").insert([
-      { slug: "migration-upgrade-shared-a", name: "Legacy shared A", community_id: community.id, admin_token: communityToken },
-      { slug: "migration-upgrade-shared-b", name: "Legacy shared B", community_id: community.id, admin_token: communityToken },
-      { slug: "migration-upgrade-event", name: "Legacy event", community_id: community.id, admin_token: eventToken },
+      {
+        id: "10000000-0000-4000-8000-000000000003",
+        slug: "migration-upgrade-shared-a",
+        name: "Legacy shared A",
+        community_id: community.id,
+        admin_token: communityToken,
+      },
+      {
+        id: "10000000-0000-4000-8000-000000000004",
+        slug: "migration-upgrade-shared-b",
+        name: "Legacy shared B",
+        community_id: community.id,
+        admin_token: communityToken,
+      },
+      {
+        id: "10000000-0000-4000-8000-000000000005",
+        slug: "migration-upgrade-event",
+        name: "Legacy event",
+        community_id: community.id,
+        admin_token: eventToken,
+      },
       { id: "10000000-0000-4000-8000-000000000001", slug: "migration-upgrade-duplicate-a", name: "Legacy duplicate A", community_id: community.id, admin_token: duplicateEventToken },
       { id: "10000000-0000-4000-8000-000000000002", slug: "migration-upgrade-duplicate-b", name: "Legacy duplicate B", community_id: community.id, admin_token: duplicateEventToken },
     ]);
