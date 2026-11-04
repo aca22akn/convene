@@ -33,7 +33,7 @@ export type Speaker = {
   line: string;
 };
 export type OrganiserView = {
-  event: { name: string; slug: string; community_slug?: string | null; id?: string; ai_enabled?: boolean };
+  event: { name: string; slug: string; community_slug?: string | null; id?: string; ai_enabled?: boolean; joins_closed?: boolean };
   members: OrganiserMember[];
   intros: OrganiserIntro[];
   needs: Record<string, number>;
@@ -113,7 +113,7 @@ export const mockMe: MeView = {
 };
 
 export const mockOrganiser: OrganiserView = {
-  event: mockLive.event,
+  event: { ...mockLive.event, joins_closed: false },
   members: M.map((m, i) => ({ ...m, contact_consent: i % 2 === 0 })),
   intros: I,
   needs: { backend: 3, databases: 2, "clinical-safety": 1, climate: 2, sales: 1, design: 2 },

@@ -48,4 +48,11 @@ describe("JoinForm directory consent", () => {
     fireEvent.click(screen.getByRole("button", { name: /find my people/i }));
     expect(await screen.findByText("This room is full")).toBeTruthy();
   });
+
+  it("shows that the doors are closed without rendering the join form", () => {
+    render(<JoinForm slug="demo" joiningClosed />);
+    expect(screen.getByRole("status").textContent).toContain("The doors are closed");
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /find my people/i })).toBeNull();
+  });
 });

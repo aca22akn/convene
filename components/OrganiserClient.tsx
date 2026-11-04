@@ -19,6 +19,8 @@ export function OrganiserClient({ slug, mock }: { slug: string; mock: boolean })
   const [manualToken, setManualToken] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [joiningBusy, setJoiningBusy] = useState(false);
+  const [joiningError, setJoiningError] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(() => {
     if (typeof window === "undefined") return true;
     return !new URLSearchParams(window.location.hash.slice(1)).has("t");
@@ -65,6 +67,25 @@ export function OrganiserClient({ slug, mock }: { slug: string; mock: boolean })
     else window.location.reload();
   }
 
+  async function setJoiningClosed(joins_closed: boolean) {
+    setJoiningBusy(true);
+    setJoiningError(null);
+    try {
+      const response = await fetch(`/api/e/${slug}/organiser`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ joins_closed }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? `Error ${response.status}`);
+      await refetch();
+    } catch (e) {
+      setJoiningError(e instanceof Error ? e.message : "Could not update joining status");
+    } finally {
+      setJoiningBusy(false);
+    }
+  }
+
   if (!mock && !data) {
     return (
       <main className="mx-auto max-w-2xl p-8">
@@ -100,6 +121,27 @@ export function OrganiserClient({ slug, mock }: { slug: string; mock: boolean })
         </nav>
       </header>
       {error && !data && <p className="mt-4 rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
+
+      {!mock && data && (
+        <section className={`${card} mt-6 flex flex-wrap items-center justify-between gap-4`}>
+          <div>
+            <h2 className="font-semibold">Attendee joining</h2>
+            <p className="mt-1 text-sm text-white/60">{data.event.joins_closed ? "The doors are closed. New attendees cannot join." : "The doors are open. Attendees can join this event."}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-label="Close joining"
+            aria-checked={data.event.joins_closed === true}
+            disabled={joiningBusy}
+            onClick={() => void setJoiningClosed(data.event.joins_closed !== true)}
+            className={`relative h-8 w-14 rounded-full transition-colors disabled:opacity-50 ${data.event.joins_closed ? "bg-amber-400" : "bg-white/20"}`}
+          >
+            <span aria-hidden="true" className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-transform ${data.event.joins_closed ? "translate-x-7" : "translate-x-1"}`} />
+          </button>
+        </section>
+      )}
+      {joiningError && <p role="alert" className="mt-3 rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{joiningError}</p>}
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Members" value={data?.members.length ?? 0} />

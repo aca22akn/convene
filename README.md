@@ -45,6 +45,8 @@ Today almost every London community runs on **Luma for events and WhatsApp for t
 4. **Try it locally:** `npm run seed` (loads 40 fictional sample members into event `demo`), `npm run dev`, open http://localhost:3000/e/demo/stage.
 5. **Deploy:** Before the first Vercel deploy, set `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` for both **Production** and **Preview** in Project Settings → Environment Variables. The production build throws if `PERSON_KEY_PEPPER` is missing, and `PUBLIC_ID_SECRET` is required in production to generate opaque live IDs. Back up `PERSON_KEY_PEPPER` securely; losing it makes existing person keys unrecoverable. Set `CRON_SECRET` and `RETENTION_DAYS` (365 by default) so the daily retention cron can run. Then run `vercel` (or import the repo in Vercel), add the other env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, and deploy with `vercel --prod`.
 
+Rate limiting trusts only the `x-vercel-forwarded-for` header. Behind any other proxy, all clients share one `unknown` bucket capped at 2 requests per window. Self-hosters must deploy on Vercel or adapt `trustedIp()` in [`lib/ratelimit.ts`](lib/ratelimit.ts) for their trusted proxy.
+
 See the [deployment runbook](docs/DEPLOY-HARDENING.md) for secret setup and existing-install steps.
 
 Create an event from the home page; save the organiser link it shows. The event token is carried in the URL fragment, exchanged for a 12-hour server-side session, and never sent in the page request. A community token is shown separately when a community is created.
@@ -139,6 +141,10 @@ Note: the keyword fallback was written while looking at this same sample data, s
 - **Token migration staging.** Run `supabase db push` to apply the expand migration before deploying the hash-based app. It preserves the legacy database defaults and uses triggers so old app inserts still receive their tokens while their hashes are backfilled; new hash-based writes clear the generated plaintext value. After deploying the hash-based app, verify legacy organiser links through the exchange flow, then manually apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to drop the triggers and plaintext columns. The `.sql.manual` file is intentionally excluded from ordinary `db push`.
 - Legacy token values reused across rows are reduced to one deterministic scope before unique indexes are added. Values matching a community token stay community-scoped; other duplicate event values remain bound to one event row because a reused token cannot safely express multiple strict scopes.
 - Lines are free text and shown publicly on the stage screen; tell people that before they type.
+
+## Development and CI
+
+Production builds are verified only in Linux CI because that matches our deployment environment. The build must check prerendering with runtime-dependent routes: the root layout calls Next.js `connection()` for the request-time CSP nonce. Windows builds are outside the verified environment.
 
 ## Tests
 

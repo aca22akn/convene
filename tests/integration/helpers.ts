@@ -33,7 +33,7 @@ export async function createEvent(communityId: string, client: SupabaseClient = 
   const { data, error } = await client
     .from("events")
     .insert({ slug, name: "Integration test event", community_id: communityId, member_cap: memberCap, ai_enabled: aiEnabled })
-    .select("id,slug,name,community_id,member_cap,ai_enabled")
+    .select("id,slug,name,community_id,member_cap,ai_enabled,joins_closed")
     .single();
   if (error) throw error;
   return data;

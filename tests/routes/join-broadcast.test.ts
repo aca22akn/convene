@@ -75,6 +75,23 @@ describe("POST /api/e/[slug]/join broadcasts updates", () => {
     expect(getEvent).not.toHaveBeenCalled();
   });
 
+  it("rejects a closed event with a clear 403 before extraction or insert", async () => {
+    getEvent.mockResolvedValue({ ...event, joins_closed: true });
+    const response = await POST(
+      new Request("http://localhost/api/e/demo/join", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Priya Raman", line: "Building a useful tool and looking for design feedback" }),
+      }),
+      { params: Promise.resolve({ slug: "demo" }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "doors are closed" });
+    expect(extract).not.toHaveBeenCalled();
+    expect(admin).not.toHaveBeenCalled();
+  });
+
   it("returns 413 for an oversized request and rejects unknown input keys", async () => {
     const oversized = await POST(new Request("http://localhost/api/e/demo/join", { method: "POST", body: JSON.stringify({ name: "Ada", line: "x".repeat(5000) }) }), { params: Promise.resolve({ slug: "demo" }) });
     expect(oversized.status).toBe(413);

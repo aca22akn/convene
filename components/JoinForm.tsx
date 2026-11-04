@@ -7,7 +7,7 @@ import { privacyNotice, RETENTION_DAYS_DEFAULT } from "@/lib/privacy";
 export const inputCls =
   "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none";
 
-export function JoinForm({ slug, aiEnabled = false, retentionDays = RETENTION_DAYS_DEFAULT }: { slug: string; aiEnabled?: boolean; retentionDays?: number }) {
+export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, retentionDays = RETENTION_DAYS_DEFAULT }: { slug: string; aiEnabled?: boolean; joiningClosed?: boolean; retentionDays?: number }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [line, setLine] = useState("");
@@ -53,7 +53,10 @@ export function JoinForm({ slug, aiEnabled = false, retentionDays = RETENTION_DA
         }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body.member_id) throw new Error(body.error === "room_full" ? "This room is full" : body.error ?? `Something went wrong (${res.status})`);
+      if (!res.ok || !body.member_id) {
+        const message = body.error === "room_full" ? "This room is full" : body.error === "doors are closed" ? "The doors are closed" : body.error ?? `Something went wrong (${res.status})`;
+        throw new Error(message);
+      }
       try {
         localStorage.setItem(`convene:${slug}`, body.member_id);
       } catch {}
@@ -79,6 +82,12 @@ export function JoinForm({ slug, aiEnabled = false, retentionDays = RETENTION_DA
         </a>
       )}
 
+      {joiningClosed ? (
+        <section role="status" className="mt-6 rounded-xl border border-amber-300/30 bg-amber-300/10 p-5">
+          <h2 className="text-xl font-semibold text-amber-100">The doors are closed</h2>
+          <p className="mt-2 text-white/70">This event is no longer accepting new attendees.</p>
+        </section>
+      ) : (
       <form onSubmit={submit} className="mt-6 space-y-5">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-white/80">Name</span>
@@ -151,6 +160,7 @@ export function JoinForm({ slug, aiEnabled = false, retentionDays = RETENTION_DA
           {privacyNotice(aiEnabled, retentionDays).map((item) => <li key={item}>{item}</li>)}
         </ul>
       </form>
+      )}
     </main>
   );
 }

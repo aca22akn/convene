@@ -17,6 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const { slug } = await ctx.params;
   const ev = await getEvent(slug);
   if (!ev) return bad("event not found", 404);
+  if (ev.joins_closed === true) return bad("doors are closed", 403);
   const eventLimited = await limit(req, "join-event", { limit: envLimit("JOIN_EVENT_LIMIT", 400), windowSeconds: 3600, extraKey: ev.id });
   if (eventLimited) return eventLimited;
   const raw = await readLimitedJson(req, 4 * 1024);

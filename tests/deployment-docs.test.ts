@@ -22,4 +22,11 @@ describe("deployment and migration documentation", () => {
     expect(readme).toContain("20261102120000_token_sessions_contract.sql.manual");
     expect(readme).toMatch(/Do not apply the manual contract before the hash-based app is deployed and verified/);
   });
+
+  it("documents the Linux production-build check and trusted proxy requirement", () => {
+    expect(readme).toContain("verified only in Linux CI");
+    expect(readme).toContain("x-vercel-forwarded-for");
+    expect(readme).toContain("unknown` bucket capped at 2 requests per window");
+    expect(readme).toContain("trustedIp()");
+  });
 });

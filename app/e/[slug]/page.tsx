@@ -7,7 +7,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
   const event = await getEvent(slug);
   const configuredDays = Number(process.env.RETENTION_DAYS);
   const retentionDays = Number.isSafeInteger(configuredDays) && configuredDays > 0 ? configuredDays : RETENTION_DAYS_DEFAULT;
-  return <JoinForm slug={slug} aiEnabled={event?.ai_enabled === true} retentionDays={retentionDays} />;
+  return <JoinForm slug={slug} aiEnabled={event?.ai_enabled === true} joiningClosed={event?.joins_closed === true} retentionDays={retentionDays} />;
 }
 
 // Per-request page (params/searchParams); allow blocking render.
