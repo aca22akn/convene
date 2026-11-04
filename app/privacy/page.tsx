@@ -4,6 +4,8 @@ function NoticeList({ aiEnabled, retentionDays }: { aiEnabled: boolean; retentio
   return <ul className="mt-4 list-disc space-y-3 pl-6">{privacyNotice(aiEnabled, retentionDays).map((line) => <li key={line}>{line}</li>)}</ul>;
 }
 
+export const instant = false;
+
 export default function PrivacyPage() {
   const configuredDays = Number(process.env.RETENTION_DAYS);
   const retentionDays = Number.isSafeInteger(configuredDays) && configuredDays > 0 ? configuredDays : RETENTION_DAYS_DEFAULT;
