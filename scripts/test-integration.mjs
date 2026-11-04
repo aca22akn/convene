@@ -85,6 +85,7 @@ function main() {
       XAI_API_KEY: "",
       PERSON_KEY_PEPPER: "integration-placeholder-person-key-pepper",
       CRON_SECRET: "integration-placeholder-cron-secret",
+      RETENTION_DAYS: "365",
     };
 
     const result = spawnSync(npx, ["vitest", "run", "--config", "vitest.integration.config.ts"], {

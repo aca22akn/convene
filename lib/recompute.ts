@@ -44,10 +44,10 @@ function pairOpen(c: Caps, x: string, y: string): boolean {
 export function rerankCandidates(members: Member[], existing: ExistingIntro[], newMemberId: string, k = RERANK_K): Member[] {
   const me = members.find((m) => m.id === newMemberId);
   const caps = capacities(members, existing);
-  if (!me || (caps.cap.get(me.id) ?? 0) <= 0) return [];
+  if (!me || me.ai_opt_out || (caps.cap.get(me.id) ?? 0) <= 0) return [];
   const done = new Set(existing.map((i) => pairKey(i.a_id, i.b_id)));
   return members
-    .filter((o) => o.id !== me.id && pairOpen(caps, me.id, o.id) && !done.has(pairKey(me.id, o.id)))
+    .filter((o) => o.id !== me.id && !o.ai_opt_out && pairOpen(caps, me.id, o.id) && !done.has(pairKey(me.id, o.id)))
     .map((o) => ({ o, s: tagScore(me, o) }))
     // highest tag score first, then most recent joiners (they are still waiting for intros)
     .sort((p, q) => q.s - p.s || (q.o.created_at > p.o.created_at ? 1 : q.o.created_at < p.o.created_at ? -1 : p.o.id < q.o.id ? -1 : 1))
@@ -102,7 +102,7 @@ export function planIntros(
 }
 
 /** Load, plan, insert. Never throws on Grok failure (falls back to tags only). Idempotent. */
-export async function recompute(eventId: string, newMemberId?: string, options: { signal?: AbortSignal } = {}): Promise<Intro[]> {
+export async function recompute(eventId: string, newMemberId?: string, options: { signal?: AbortSignal; aiEnabled?: boolean } = {}): Promise<Intro[]> {
   const db = admin();
   const [{ data: members, error: me }, { data: existing, error: ie }] = await Promise.all([
     db.from("members").select("*").eq("event_id", eventId).order("created_at"),
@@ -114,10 +114,15 @@ export async function recompute(eventId: string, newMemberId?: string, options: 
   const ex = (existing ?? []) as ExistingIntro[];
 
   let rr: RerankResult | null = null;
-  if (newMemberId) {
+  let aiEnabled = options.aiEnabled;
+  if (aiEnabled === undefined) {
+    const { data: event } = await db.from("events").select("ai_enabled").eq("id", eventId).maybeSingle();
+    aiEnabled = event?.ai_enabled === true;
+  }
+  if (newMemberId && aiEnabled) {
     const me2 = ms.find((m) => m.id === newMemberId);
     const cands = rerankCandidates(ms, ex, newMemberId);
-    if (me2 && cands.length) rr = await rerank(me2, cands, { eventId, signal: options.signal }).catch(() => null);
+    if (me2 && cands.length) rr = await rerank(me2, cands, { eventId, signal: options.signal, enabled: aiEnabled }).catch(() => null);
   }
 
   const planned = planIntros(ms, ex, newMemberId, rr);

@@ -22,7 +22,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     id: m.id, name: m.name, x_handle: m.x_handle, speak_on: m.speak_on, speak_topics: m.speak_topics, line: m.line, demand: m.demand,
   }));
   return json({
-    event: { id: ev.id, name: ev.name, slug: ev.slug, community_slug: community.data?.slug ?? null, community_name: community.data?.name ?? null },
+    event: { id: ev.id, name: ev.name, slug: ev.slug, ai_enabled: ev.ai_enabled === true, community_slug: community.data?.slug ?? null, community_name: community.data?.name ?? null },
     members,
     intros: intros.data ?? [],
     needs,

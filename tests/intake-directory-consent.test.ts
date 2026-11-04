@@ -24,12 +24,14 @@ describe("bulk intake directory consent", () => {
       })),
     });
 
-    const base = { name: "Sample Person", line: "Building a tool", contact_consent: false, directory_consent: false };
+    const base = { name: "Sample Person", line: "Building a tool", contact_consent: false, directory_consent: false, ai_opt_out: false };
     await insertMembers({ id: "event-1", community_id: null }, [
-      { ...base, directory_consent: true },
+      { ...base, directory_consent: true, ai_opt_out: true },
       base,
-    ]);
+    ], 4, { aiEnabled: false });
 
     expect(inserted.map((row) => row.directory_consent)).toEqual([true, false]);
+    expect(inserted.map((row) => row.ai_opt_out)).toEqual([true, false]);
+    expect(extract).toHaveBeenNthCalledWith(1, "Building a tool", undefined, { eventId: "event-1", signal: undefined, enabled: false });
   });
 });

@@ -25,7 +25,7 @@ vi.mock("@/lib/ratelimit", () => ({ limit, envLimit: (_name: string, fallback: n
 
 import { POST } from "@/app/api/e/[slug]/join/route";
 
-const event = { id: "event-1", slug: "demo", name: "Demo night", community_id: null, created_at: "2026-10-22T19:00:00.000Z" };
+const event = { id: "event-1", slug: "demo", name: "Demo night", community_id: null, created_at: "2026-10-22T19:00:00.000Z", ai_enabled: false };
 const callbacks: (() => Promise<void>)[] = [];
 
 describe("POST /api/e/[slug]/join broadcasts updates", () => {
@@ -57,12 +57,13 @@ describe("POST /api/e/[slug]/join broadcasts updates", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(extract).toHaveBeenCalledWith(expect.any(String), undefined, { eventId: event.id, signal: expect.any(AbortSignal), enabled: false });
     expect(callbacks).toHaveLength(1);
     await callbacks[0]();
 
     expect(notifyEvent).toHaveBeenCalledTimes(2);
     expect(notifyEvent).toHaveBeenNthCalledWith(1, event.id);
-    expect(recompute).toHaveBeenCalledWith(event.id, "member-1", { signal: expect.any(AbortSignal) });
+    expect(recompute).toHaveBeenCalledWith(event.id, "member-1", { signal: expect.any(AbortSignal), aiEnabled: false });
     expect(notifyEvent).toHaveBeenNthCalledWith(2, event.id);
   });
 

@@ -21,6 +21,7 @@ export const JoinInput = z.object({
   contact: z.string().trim().max(120).optional().nullable(),
   contact_consent: z.boolean().default(false),
   directory_consent: z.boolean().default(false),
+  ai_opt_out: z.boolean().default(false),
 }).strict();
 export type JoinInput = z.infer<typeof JoinInput>;
 
@@ -63,6 +64,7 @@ export const Member = z.object({
   contact: z.string().nullable().optional(),
   contact_consent: z.boolean().default(false),
   directory_consent: z.boolean().optional(),
+  ai_opt_out: z.boolean().optional(),
   offers: z.array(Tag),
   seeks: z.array(Tag),
   topics: z.array(Tag),

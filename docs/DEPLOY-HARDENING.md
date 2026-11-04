@@ -12,6 +12,8 @@
 
 Set `MAX_MEMBERS_PER_EVENT` to the room cap (default 200), the `JOIN_*`, `EVENT_CREATE_*`, `EVENT_DELETE_LIMIT`, `IMPORT_LIMIT`, `ASK_*`, and `AUTH_EXCHANGE_LIMIT` values to tune their Postgres-backed fixed-window limits, and `AI_DAILY_CALL_LIMIT` / `AI_EVENT_DAILY_CALL_LIMIT` to tune xAI call budgets (defaults 3,000 per UTC day globally and 400 per event). Keep the defaults unless you have a measured reason to change them. Calls fall back to keyword extraction and tag-only matching when the AI budget is exhausted. Do not remove the database rate-limit migration; the app fails closed if its RPC is unavailable.
 
+Set `RETENTION_DAYS` (365 by default) and a high-entropy `CRON_SECRET` in Vercel. `vercel.json` schedules `/api/cron/retention` daily at 03:00 UTC. Confirm the cron is listed in Vercel after deployment. The endpoint removes expired event data and orphan people, expired sessions/LLM tokens, and rate-limit windows older than two days.
+
 ## Existing installations
 
 Before deploying a version that hashes person keys, use the same backed-up `PERSON_KEY_PEPPER` for the maintenance command and every app instance. Apply the standard timestamped migrations with `npx supabase db push`. Pause joins and imports, wait for old app instances to drain, and keep writes paused through the rehash and deployment. Run `npm run rehash:people:dry-run`, review the counts, then run `npm run rehash:people`. Deploy with the same pepper, verify organiser links and returning-member identity, and resume writes. Apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` only after verifying the hash-based app and legacy organiser-link exchange flow.

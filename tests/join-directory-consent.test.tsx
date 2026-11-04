@@ -20,18 +20,19 @@ describe("JoinForm directory consent", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<JoinForm slug="demo" />);
+    render(<JoinForm slug="demo" aiEnabled />);
     expect(screen.getByText(/name, x handle, event line, talk topic, and the number of events where you opted in/i)).toBeTruthy();
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Priya Raman" } });
     fireEvent.change(screen.getByRole("textbox", { name: /what are you building/i }), {
       target: { value: "Building a useful tool and looking for design feedback" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /show me in the community directory/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /keep my text away from external ai/i }));
     fireEvent.click(screen.getByRole("button", { name: /find my people/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
-    expect(requestBody).toMatchObject({ directory_consent: true, contact_consent: false });
+    expect(requestBody).toMatchObject({ directory_consent: true, contact_consent: false, ai_opt_out: true });
     expect(push).toHaveBeenCalledWith(expect.stringContaining("/e/demo/me?id=member-1"));
   });
 

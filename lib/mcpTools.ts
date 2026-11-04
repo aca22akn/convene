@@ -111,20 +111,23 @@ export function pairScore(i: Pick<PersonSummary, "offers" | "seeks"> & { topics?
 
 // ---------- DB loaders ----------
 
-export type MemberScopeFilter = { eventIds?: string[] };
+export type MemberScopeFilter = { eventIds?: string[]; aiEnabledOnly?: boolean; excludeAiOptOut?: boolean };
 
 export async function loadCommunityRows(communityId: string | null, scope: MemberScopeFilter = {}): Promise<(CommunityMember & { event_slug: string })[]> {
   const db = admin();
   if (scope.eventIds && scope.eventIds.length === 0) return [];
-  let eventQuery = db.from("events").select("id,slug");
+  let eventQuery = db.from("events").select("id,slug,ai_enabled");
   if (scope.eventIds) eventQuery = eventQuery.in("id", scope.eventIds);
   else if (communityId) eventQuery = eventQuery.eq("community_id", communityId);
   else return [];
   const { data: evs, error: eventError } = await eventQuery;
   if (eventError) throw eventError;
-  if (!evs?.length) return [];
-  const slugOf = new Map(evs.map((e) => [e.id as string, e.slug as string]));
-  const { data, error } = await db.from("members").select(PUBLIC_MEMBER_COLS).in("event_id", [...slugOf.keys()]);
+  const eligibleEvents = (evs ?? []).filter((event) => !scope.aiEnabledOnly || event.ai_enabled === true);
+  if (!eligibleEvents.length) return [];
+  const slugOf = new Map(eligibleEvents.map((e) => [e.id as string, e.slug as string]));
+  let memberQuery = db.from("members").select(`${PUBLIC_MEMBER_COLS},ai_opt_out`).in("event_id", [...slugOf.keys()]);
+  if (scope.excludeAiOptOut) memberQuery = memberQuery.eq("ai_opt_out", false);
+  const { data, error } = await memberQuery;
   if (error) throw error;
   return ((data ?? []) as unknown as CommunityMember[]).map((m) => ({ ...m, event_slug: slugOf.get(m.event_id)! }));
 }
@@ -160,9 +163,10 @@ export async function suggestIntros(communityId: string | null, memberId: string
   if (scope.eventIds) introQuery = introQuery.in("event_id", scope.eventIds);
   const { data: intros } = await introQuery;
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const existing = (intros ?? []).map((i) => {
+  const existing = (intros ?? []).flatMap((i) => {
     const other = byId.get(i.a_id === memberId ? i.b_id : i.a_id);
-    return { name: other?.name, line: other?.line, score: i.score, reasons: (i.reasons as { text: string }[]).map((r) => r.text) };
+    if (!other) return [];
+    return [{ name: other.name, line: other.line, score: i.score, reasons: (i.reasons as { text: string }[]).map((r) => r.text) }];
   });
   const myPid = me.person_id || me.id;
   const people = summarisePeople(rows).filter((p) => p.person_id !== myPid);

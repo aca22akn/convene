@@ -28,12 +28,12 @@ export async function createCommunity(client: SupabaseClient = service) {
   return data;
 }
 
-export async function createEvent(communityId: string, client: SupabaseClient = service, memberCap = 200) {
+export async function createEvent(communityId: string, client: SupabaseClient = service, memberCap = 200, aiEnabled = false) {
   const slug = `integration-${randomUUID()}`;
   const { data, error } = await client
     .from("events")
-    .insert({ slug, name: "Integration test event", community_id: communityId, member_cap: memberCap })
-    .select("id,slug,name,community_id,member_cap")
+    .insert({ slug, name: "Integration test event", community_id: communityId, member_cap: memberCap, ai_enabled: aiEnabled })
+    .select("id,slug,name,community_id,member_cap,ai_enabled")
     .single();
   if (error) throw error;
   return data;

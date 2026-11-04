@@ -31,11 +31,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!auth || !c) return bad("unauthorized", 401);
 
   const memberScope = eventFilterForAuth(auth);
+  let aiEnabled = false;
   if (auth.scope.type === "community") {
     if (auth.scope.communityId !== c.id) return bad("unauthorized", 401);
+    let eventsQuery = admin().from("events").select("id,ai_enabled").eq("community_id", c.id);
+    if (memberScope.eventIds) eventsQuery = eventsQuery.in("id", memberScope.eventIds);
+    const { data: events } = await eventsQuery;
+    aiEnabled = (events ?? []).some((event) => event.ai_enabled === true);
   } else {
-    const { data: event } = await admin().from("events").select("id,community_id").eq("id", auth.scope.eventId).maybeSingle();
+    const { data: event } = await admin().from("events").select("id,community_id,ai_enabled").eq("id", auth.scope.eventId).maybeSingle();
     if (!event || event.community_id !== c.id) return bad("unauthorized", 401);
+    aiEnabled = event.ai_enabled === true;
   }
 
   const scopeId = auth.scope.type === "community" ? auth.scope.communityId : auth.scope.eventId;
@@ -44,7 +50,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const hourLimited = await limit(req, "ask-hour", { limit: envLimit("ASK_HOUR_LIMIT", 20), windowSeconds: 3600, extraKey: scopeId });
   if (hourLimited) return hourLimited;
 
-  const client = grok();
+  const client = aiEnabled ? grok() : null;
   const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin;
   const remote = !/localhost|127\.0\.0\.1/.test(base);
   if (client && remote && await aiCallAllowed(scopeId)) {
@@ -63,10 +69,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   }
 
   // Fallback: call the same MCP tool functions directly, then let Grok (or a plain formatter) answer.
+  const resultScope = aiEnabled ? { ...memberScope, aiEnabledOnly: true, excludeAiOptOut: true } : memberScope;
   const [people, speakers, gaps] = await Promise.all([
-    searchMembers(c.id, question, memberScope),
-    findSpeakers(c.id, question, memberScope),
-    communityGaps(c.id, memberScope),
+    searchMembers(c.id, question, resultScope),
+    findSpeakers(c.id, question, resultScope),
+    communityGaps(c.id, resultScope),
   ]);
   const context = { search_members: people.slice(0, 10), find_speakers: speakers.slice(0, 5), community_gaps: gaps };
   if (client && await aiCallAllowed(scopeId)) {

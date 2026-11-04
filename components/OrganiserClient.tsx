@@ -181,7 +181,7 @@ export function OrganiserClient({ slug, mock }: { slug: string; mock: boolean })
             ))}
           </div>
         </section>
-        <ImportBox slug={slug} onDone={refetch} />
+        <ImportBox slug={slug} aiEnabled={data?.event.ai_enabled === true} onDone={refetch} />
       </div>
 
       <DangerZone slug={slug} />
@@ -251,18 +251,23 @@ function AskBox({ community }: { community?: string | null }) {
   );
 }
 
-function ImportBox({ slug, onDone }: { slug: string; onDone: () => void }) {
+function ImportBox({ slug, aiEnabled, onDone }: { slug: string; aiEnabled: boolean; onDone: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   async function onFile(f: File | undefined) {
     if (!f) return;
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/e/${slug}/import`, { method: "POST", headers: { "content-type": "text/csv" }, body: await f.text() });
+      const res = await fetch(`/api/e/${slug}/import`, {
+        method: "POST",
+        headers: { "content-type": "text/csv", "x-ai-processing-acknowledged": acknowledged ? "true" : "false" },
+        body: await f.text(),
+      });
       const body = await res.json().catch(() => ({}));
-      setMsg(res.ok ? `Imported ${body.imported ?? 0} guests.` : body.error ?? `Error ${res.status}`);
+      setMsg(res.ok ? `Imported ${body.imported ?? 0} guests${body.ai_used ? " using xAI" : " with keyword matching"}.` : body.error ?? `Error ${res.status}`);
       onDone();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Upload failed");
@@ -275,6 +280,12 @@ function ImportBox({ slug, onDone }: { slug: string; onDone: () => void }) {
     <section className={card}>
       <h2 className="text-lg font-semibold">Import Luma guests</h2>
       <p className="text-sm text-white/55">Upload the guest CSV export. The first free-text registration answer becomes each person&apos;s line.</p>
+      {aiEnabled && (
+        <label className="mt-3 flex items-start gap-3 text-sm text-white/75">
+          <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
+          <span>I confirm attendees were told their answers are analysed by xAI.</span>
+        </label>
+      )}
       <input type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} className="mt-3 block text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
       {msg && <p className="mt-2 text-white/80">{msg}</p>}
     </section>

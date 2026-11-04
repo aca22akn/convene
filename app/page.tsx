@@ -35,7 +35,7 @@ export default function Home() {
         ))}
       </ol>
 
-      <CreateEvent />
+      <CreateEvent aiAvailable={Boolean(process.env.XAI_API_KEY)} />
     </main>
   );
 }

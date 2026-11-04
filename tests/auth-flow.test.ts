@@ -91,7 +91,7 @@ const communityToken = "community-admin-token";
 const sessionToken = "active-session-token";
 const community = { id: "c1", slug: "northstar", name: "Northstar", admin_token_hash: hashToken(communityToken) };
 // Existing rows retain their legacy value during the expand phase while the hash is used for auth.
-const event = { id: "e1", community_id: "c1", name: "Northstar night", admin_token: eventToken, admin_token_hash: hashToken(eventToken) };
+const event = { id: "e1", community_id: "c1", name: "Northstar night", ai_enabled: true, admin_token: eventToken, admin_token_hash: hashToken(eventToken) };
 
 function resetDatabase() {
   fakeDb.tables.events = [{ ...event }];
@@ -231,6 +231,7 @@ describe("token scope and sessions", () => {
   });
 
   it("returns new tokens once while storing only hashes, and rejects an event token as a community token", async () => {
+    vi.stubEnv("XAI_API_KEY", "");
     const createdResponse = await createEvent(new Request("https://convene.example/api/events", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -242,6 +243,7 @@ describe("token scope and sessions", () => {
     expect(created.community_token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(JSON.stringify(created)).not.toContain("token=");
     expect(fakeDb.tables.events.at(-1)?.admin_token_hash).toBe(hashToken(created.admin_token));
+    expect(fakeDb.tables.events.at(-1)?.ai_enabled).toBe(false);
     expect(fakeDb.tables.communities.at(-1)?.admin_token_hash).toBe(hashToken(created.community_token));
     expect(fakeDb.tables.events.at(-1)?.admin_token).toBeUndefined();
     expect(fakeDb.tables.communities.at(-1)?.admin_token).toBeUndefined();
@@ -252,6 +254,14 @@ describe("token scope and sessions", () => {
       body: JSON.stringify({ name: "Another event", community_slug: "northstar", community_token: eventToken }),
     }));
     expect(denied.status).toBe(403);
+
+    vi.stubEnv("XAI_API_KEY", "test-key-is-not-used");
+    const enabledResponse = await createEvent(new Request("https://convene.example/api/events", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Enabled event", community_slug: "northstar", community_token: communityToken, ai_enabled: true }),
+    }));
+    expect(enabledResponse.status).toBe(200);
+    expect(fakeDb.tables.events.at(-1)?.ai_enabled).toBe(true);
   });
 
   it("sends only a short-lived, scope-bound LLM token to xAI", async () => {
@@ -297,6 +307,17 @@ describe("token scope and sessions", () => {
     expect(fakeDb.calls).toBe(0);
   });
 
+  it("makes no xAI call for an event where AI is disabled", async () => {
+    fakeDb.tables.events = [{ ...event, ai_enabled: false }];
+    vi.stubEnv("NEXT_PUBLIC_BASE_URL", "https://convene.example");
+    const response = await ask(new Request("https://convene.example/api/c/northstar/ask", {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${eventToken}` },
+      body: JSON.stringify({ question: "Who knows databases?" }),
+    }), { params: Promise.resolve({ slug: "northstar" }) });
+    expect(response.status).toBe(200);
+    expect(fakeDb.calls).toBe(0);
+  });
+
   it("bounds Ask bodies and rejects unknown JSON keys", async () => {
     const oversized = await ask(new Request("https://convene.example/api/c/northstar/ask", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: "x".repeat(3000) }),
@@ -317,6 +338,10 @@ describe("token scope and sessions", () => {
     }), { params: Promise.resolve({ slug: "northstar" }) });
 
     expect(response.status).toBe(200);
-    expect(fakeDb.mcpScopes).toEqual([{ eventIds: ["e1"] }, { eventIds: ["e1"] }, { eventIds: ["e1"] }]);
+    expect(fakeDb.mcpScopes).toEqual([
+      { eventIds: ["e1"], aiEnabledOnly: true, excludeAiOptOut: true },
+      { eventIds: ["e1"], aiEnabledOnly: true, excludeAiOptOut: true },
+      { eventIds: ["e1"], aiEnabledOnly: true, excludeAiOptOut: true },
+    ]);
   });
 });

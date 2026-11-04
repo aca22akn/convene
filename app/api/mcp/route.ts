@@ -21,7 +21,8 @@ async function handle(req: Request): Promise<Response> {
 
   let communityId: string | null = null;
   let scopeLabel = "event";
-  const scope = eventFilterForAuth(auth);
+  const baseScope = eventFilterForAuth(auth);
+  const scope = auth.llm ? { ...baseScope, aiEnabledOnly: true, excludeAiOptOut: true } : baseScope;
   if (auth.scope.type === "community") {
     const { data: community, error } = await admin()
       .from("communities")

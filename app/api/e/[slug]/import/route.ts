@@ -27,8 +27,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!lineColumn) return bad("no free-text question column found in this CSV");
   // Key community memory on the email/phone from Luma, but do not keep the contact (no consent from our form).
   const rows = guests.map((g) => ({ ...g, person_key: personKey(g) }));
-  const result = await insertMembers(ev, rows, 6, { maxMembers: ev.member_cap || envLimit("MAX_MEMBERS_PER_EVENT", 200) });
+  const aiEnabled = ev.ai_enabled === true && req.headers.get("x-ai-processing-acknowledged") === "true";
+  const result = await insertMembers(ev, rows, 6, {
+    maxMembers: ev.member_cap || envLimit("MAX_MEMBERS_PER_EVENT", 200),
+    aiEnabled,
+  });
   await notifyEvent(ev.id).catch((e) => console.error("[import] realtime notify failed", e));
-  if (result.imported.length) await recompute(ev.id).catch((e) => console.error("[import] recompute failed", e));
-  return json({ imported: result.imported.length, skipped_full: result.skipped_full, line_column: lineColumn, speak_column: speakColumn });
+  if (result.imported.length) await recompute(ev.id, undefined, { aiEnabled: ev.ai_enabled === true }).catch((e) => console.error("[import] recompute failed", e));
+  return json({
+    imported: result.imported.length,
+    skipped_full: result.skipped_full,
+    line_column: lineColumn,
+    speak_column: speakColumn,
+    ai_used: result.extraction.includes("grok"),
+  });
 }

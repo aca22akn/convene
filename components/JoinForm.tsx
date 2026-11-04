@@ -2,11 +2,12 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Brand } from "./Brand";
+import { privacyNotice, RETENTION_DAYS_DEFAULT } from "@/lib/privacy";
 
 export const inputCls =
   "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none";
 
-export function JoinForm({ slug }: { slug: string }) {
+export function JoinForm({ slug, aiEnabled = false, retentionDays = RETENTION_DAYS_DEFAULT }: { slug: string; aiEnabled?: boolean; retentionDays?: number }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [line, setLine] = useState("");
@@ -14,6 +15,7 @@ export function JoinForm({ slug }: { slug: string }) {
   const [speakOn, setSpeakOn] = useState("");
   const [consent, setConsent] = useState(false);
   const [directoryConsent, setDirectoryConsent] = useState(false);
+  const [aiOptOut, setAiOptOut] = useState(false);
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export function JoinForm({ slug }: { slug: string }) {
           contact: consent ? contact.trim() || null : null,
           contact_consent: consent && !!contact.trim(),
           directory_consent: directoryConsent,
+          ai_opt_out: aiOptOut,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -134,11 +137,19 @@ export function JoinForm({ slug }: { slug: string }) {
           </label>
           <p className="mt-2 pl-8 text-sm text-white/55">If you opt in, the public directory shows your name, X handle, event line, talk topic, and the number of events where you opted in. Contact sharing is separate.</p>
         </div>
+        {aiEnabled && (
+          <label className="flex items-start gap-3 rounded-xl border border-white/10 p-4">
+            <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={aiOptOut} onChange={(e) => setAiOptOut(e.target.checked)} />
+            <span className="text-white/80">Keep my text away from external AI; I&apos;ll get basic matching only</span>
+          </label>
+        )}
         {error && <p className="rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
         <button disabled={busy} className="w-full rounded-xl bg-emerald-400 py-4 text-lg font-semibold text-black disabled:opacity-60">
           {busy ? "Joining…" : "Find my people"}
         </button>
-        <p className="text-center text-sm text-white/45">Nothing is sent to anyone. The organiser can delete all event data.</p>
+        <ul aria-label="Privacy notice" className="list-disc space-y-1 pl-5 text-sm text-white/55">
+          {privacyNotice(aiEnabled, retentionDays).map((item) => <li key={item}>{item}</li>)}
+        </ul>
       </form>
     </main>
   );

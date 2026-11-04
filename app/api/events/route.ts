@@ -13,6 +13,7 @@ const Body = z.object({
   community_slug: z.string().trim().max(40).optional(),
   community_name: z.string().trim().max(80).optional(),
   community_token: z.string().optional(), // required to add an event to an existing community
+  ai_enabled: z.boolean().optional(),
 }).strict();
 
 /** Create an event (and its community if new). Admin tokens are returned once, here. */
@@ -49,7 +50,14 @@ export async function POST(req: Request) {
     const slug = generateEventSlug(name);
     const result = await db
       .from("events")
-      .insert({ slug, name, community_id: community!.id, admin_token_hash: hashToken(eventToken), member_cap: envLimit("MAX_MEMBERS_PER_EVENT", 200) })
+      .insert({
+        slug,
+        name,
+        community_id: community!.id,
+        admin_token_hash: hashToken(eventToken),
+        member_cap: envLimit("MAX_MEMBERS_PER_EVENT", 200),
+        ai_enabled: Boolean(process.env.XAI_API_KEY) && (parsed.data.ai_enabled ?? true),
+      })
       .select("slug")
       .single();
     if (!result.error) {

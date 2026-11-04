@@ -4,11 +4,12 @@ import { inputCls } from "./JoinForm";
 
 type Created = { slug: string; admin_token: string; community_slug: string; community_token: string | null };
 
-export function CreateEvent() {
+export function CreateEvent({ aiAvailable = false }: { aiAvailable?: boolean }) {
   const [name, setName] = useState("");
   const [communityName, setCommunityName] = useState("");
   const [communitySlug, setCommunitySlug] = useState("");
   const [communityToken, setCommunityToken] = useState("");
+  const [aiEnabled, setAiEnabled] = useState(aiAvailable);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
@@ -25,6 +26,7 @@ export function CreateEvent() {
           community_name: communityName.trim() || undefined,
           community_slug: communitySlug.trim() || undefined,
           community_token: communityToken.trim() || undefined,
+          ai_enabled: aiEnabled,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -72,6 +74,10 @@ export function CreateEvent() {
         <input className={inputCls} maxLength={80} placeholder="Community name (new)" value={communityName} onChange={(e) => setCommunityName(e.target.value)} />
         <input className={inputCls} maxLength={60} placeholder="…or existing community slug" value={communitySlug} onChange={(e) => setCommunitySlug(e.target.value)} autoCapitalize="off" />
         <input className={`${inputCls} sm:col-span-2`} maxLength={128} placeholder="Existing community token (if joining one)" value={communityToken} onChange={(e) => setCommunityToken(e.target.value)} autoCapitalize="off" autoComplete="off" />
+        <label className="flex items-start gap-3 sm:col-span-2">
+          <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={aiEnabled} disabled={!aiAvailable} onChange={(e) => setAiEnabled(e.target.checked)} />
+          <span className="text-white/75">Use xAI for matching and Ask (attendees can opt out){!aiAvailable && " — unavailable until XAI_API_KEY is configured"}</span>
+        </label>
         {error && <p className="text-red-300 sm:col-span-2">{error}</p>}
         <button disabled={busy} className="rounded-xl bg-emerald-400 py-3 font-semibold text-black disabled:opacity-60 sm:col-span-2">
           {busy ? "Creating…" : "Create event"}

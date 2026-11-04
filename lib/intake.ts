@@ -20,7 +20,7 @@ export async function insertMembers(
   const remaining = Math.max(0, cap - (count ?? 0));
   const selected = rows.slice(0, remaining);
   const settled = await pool(selected, concurrency, async (r) => {
-    const tags = await extract(r.line, r.speak_on, { eventId: ev.id, signal: options.signal, enabled: options.aiEnabled });
+    const tags = await extract(r.line, r.speak_on, { eventId: ev.id, signal: options.signal, enabled: options.aiEnabled !== false && !r.ai_opt_out });
     let person_id: string | null = null;
     const key = r.person_key ?? personKey(r);
     if (ev.community_id && key) person_id = await upsertPerson(ev.community_id, key, r.name).catch(() => null);
@@ -36,6 +36,7 @@ export async function insertMembers(
         contact: r.contact_consent ? r.contact || null : null,
         contact_consent: !!(r.contact_consent && r.contact),
         directory_consent: !!r.directory_consent,
+        ai_opt_out: !!r.ai_opt_out,
         offers: tags.offers,
         seeks: tags.seeks,
         topics: tags.topics,

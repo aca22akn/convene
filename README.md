@@ -41,9 +41,9 @@ Today almost every London community runs on **Luma for events and WhatsApp for t
 
 1. **Fork / clone** this repo and `npm install`.
 2. **Supabase:** create a project, link it with `npx supabase link --project-ref <ref>`, then apply every standard timestamped migration with `npx supabase db push`. For SQL-editor setup, apply all `*.sql` migrations in timestamp order; the initial migration alone is not a complete schema.
-3. **Env:** `cp .env.example .env.local` and set the Supabase URL, anon key, service-role key, a stable, random `PERSON_KEY_PEPPER`, and a separate random `PUBLIC_ID_SECRET`. Keep the pepper unchanged and backed up; changing it requires rehashing existing person keys, and losing it makes existing person keys unrecoverable. Keep `PUBLIC_ID_SECRET` stable so live graph IDs remain stable. `XAI_API_KEY` is optional — without it Convene uses keyword extraction and tag-only matching.
+3. **Env:** `cp .env.example .env.local` and set the Supabase URL, anon key, service-role key, a stable, random `PERSON_KEY_PEPPER`, and a separate random `PUBLIC_ID_SECRET`. Before the first Vercel deploy, set `PERSON_KEY_PEPPER` for both Production and Preview; the app throws during build without it. Keep the pepper unchanged and backed up securely: losing it makes person keys unrecoverable. Keep `PUBLIC_ID_SECRET` stable so live graph IDs remain stable. `XAI_API_KEY` is optional — without it Convene uses keyword extraction and tag-only matching.
 4. **Try it locally:** `npm run seed` (loads 40 fictional sample members into event `demo`), `npm run dev`, open http://localhost:3000/e/demo/stage.
-5. **Deploy:** Before the first Vercel deploy, set `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` for both **Production** and **Preview** in Project Settings → Environment Variables. The production build throws if `PERSON_KEY_PEPPER` is missing, and `PUBLIC_ID_SECRET` is required in production to generate opaque live IDs. Back up `PERSON_KEY_PEPPER` securely; losing it makes existing person keys unrecoverable. Then run `vercel` (or import the repo in Vercel), add the other env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, and deploy with `vercel --prod`.
+5. **Deploy:** Before the first Vercel deploy, set `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` for both **Production** and **Preview** in Project Settings → Environment Variables. The production build throws if `PERSON_KEY_PEPPER` is missing, and `PUBLIC_ID_SECRET` is required in production to generate opaque live IDs. Back up `PERSON_KEY_PEPPER` securely; losing it makes existing person keys unrecoverable. Set `CRON_SECRET` and `RETENTION_DAYS` (365 by default) so the daily retention cron can run. Then run `vercel` (or import the repo in Vercel), add the other env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, and deploy with `vercel --prod`.
 
 See the [deployment runbook](docs/DEPLOY-HARDENING.md) for secret setup and existing-install steps.
 
@@ -80,12 +80,18 @@ flowchart LR
 
 ## Privacy
 
-- Nothing is ever sent to anyone. Convene shows intros on screens; it never emails, messages or posts.
-- Contact details are optional, stored only with an explicit consent tick, never exposed by the public API, and exported in `contacts.vcf` only to the organiser.
-- The community directory shows only people who opt in on the join form. Luma-imported members and anyone who leaves the box unchecked are excluded.
-- Luma-imported emails are stored as non-consenting and are not exported.
-- The organiser can delete all data for an event with one button. Data lives in the community's own Supabase.
-- Lines are sent to xAI for extraction and reranking when `XAI_API_KEY` is set; leave it empty to keep everything in your own infrastructure.
+<!-- PRIVACY:START -->
+- We collect your name, your one-line profile, optional X handle and speaker topic, and contact details only when you provide them.
+- Your name and your line appear to people you are matched with. The room screen shows your first name and a quote from your line.
+- Contact details are shared with the organiser only if you consent.
+- The public directory shows your profile only if you opt in.
+- The organiser can delete event data at any time.
+- When event AI is enabled, names, lines, and speaker topics may be processed by xAI for matching and Ask unless a person opts out; opted-out text is excluded from AI prompts.
+- When event AI is disabled, external AI is not called and matching uses keyword extraction and tags.
+- Event data is retained for 365 days, then deleted automatically.
+<!-- PRIVACY:END -->
+
+The full data inventory is in [`docs/DATA.md`](docs/DATA.md). The [/privacy](/privacy) page shows the event-specific AI-enabled and AI-disabled notices.
 
 ## MCP
 

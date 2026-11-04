@@ -43,8 +43,8 @@ const schema = {
 export const rerankWeight = (normTag: number, rerank: number) => 0.4 * normTag + 0.6 * (rerank / 10);
 
 /** Returns null when Grok is unavailable or fails; caller falls back to tag-only matching. */
-export async function rerank(newMember: Person, cands: Person[], options: { eventId?: string; signal?: AbortSignal } = {}): Promise<RerankResult | null> {
-  const client = grok();
+export async function rerank(newMember: Person, cands: Person[], options: { eventId?: string; signal?: AbortSignal; enabled?: boolean } = {}): Promise<RerankResult | null> {
+  const client = options.enabled === false ? null : grok();
   if (!client || cands.length === 0) return null;
   if (options.eventId && !await aiCallAllowed(options.eventId)) return null;
   const labels = cands.map((c, i) => ({ key: `c${i + 1}`, c }));

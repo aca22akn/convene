@@ -24,7 +24,7 @@ vi.mock("@/lib/ratelimit", () => ({ limit, envLimit: (_name: string, fallback: n
 
 import { POST } from "@/app/api/e/[slug]/import/route";
 
-const event = { id: "event-1", slug: "demo", community_id: "community-1" };
+const event = { id: "event-1", slug: "demo", community_id: "community-1", member_cap: 200, ai_enabled: true };
 
 describe("POST /api/e/[slug]/import broadcasts committed members", () => {
   beforeEach(() => {
@@ -48,8 +48,18 @@ describe("POST /api/e/[slug]/import broadcasts committed members", () => {
 
     expect(response.status).toBe(200);
     expect(insertMembers).toHaveBeenCalledOnce();
+    expect(insertMembers).toHaveBeenCalledWith(event, expect.any(Array), 6, { maxMembers: 200, aiEnabled: false });
+    expect(await response.json()).toMatchObject({ ai_used: false });
     expect(notifyEvent).toHaveBeenCalledOnce();
     expect(notifyEvent).toHaveBeenCalledWith(event.id);
+  });
+
+  it("enables import AI only after explicit attendee notice acknowledgement", async () => {
+    const response = await POST(new Request("http://localhost/api/e/demo/import", {
+      method: "POST", headers: { "x-ai-processing-acknowledged": "true" }, body: "Name,Question\nAda,Building an analytics engine",
+    }), { params: Promise.resolve({ slug: "demo" }) });
+    expect(response.status).toBe(200);
+    expect(insertMembers).toHaveBeenCalledWith(event, expect.any(Array), 6, { maxMembers: 200, aiEnabled: true });
   });
 
   it("returns 429 from the import scope limiter", async () => {

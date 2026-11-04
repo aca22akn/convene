@@ -14,7 +14,8 @@
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "rehash:people": "tsx --env-file-if-exists=.env.local scripts/rehash-people.ts",
     "rehash:people:dry-run": "tsx --env-file-if-exists=.env.local scripts/rehash-people.ts --dry-run",
-    "eval": "tsx --env-file-if-exists=.env.local scripts/eval.ts"
+    "eval": "tsx --env-file-if-exists=.env.local scripts/eval.ts",
+    "privacy:readme": "tsx scripts/generate-privacy-readme.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

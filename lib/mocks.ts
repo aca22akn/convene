@@ -33,7 +33,7 @@ export type Speaker = {
   line: string;
 };
 export type OrganiserView = {
-  event: { name: string; slug: string; community_slug?: string | null; id?: string };
+  event: { name: string; slug: string; community_slug?: string | null; id?: string; ai_enabled?: boolean };
   members: OrganiserMember[];
   intros: OrganiserIntro[];
   needs: Record<string, number>;

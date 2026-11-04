@@ -28,7 +28,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const contact = input.contact?.trim() || null;
 
   const aiSignal = AbortSignal.timeout(25_000);
-  const tags = await extract(input.line, input.speak_on, { eventId: ev.id, signal: aiSignal });
+  const aiEnabled = ev.ai_enabled === true;
+  const tags = await extract(input.line, input.speak_on, { eventId: ev.id, signal: aiSignal, enabled: aiEnabled && !input.ai_opt_out });
   let person_id: string | null = null;
   if (ev.community_id) {
     const key = personKey({ x_handle, contact });
@@ -46,6 +47,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
       contact: input.contact_consent ? contact : null, // contact is only stored when they agreed to share it
       contact_consent: input.contact_consent && !!contact,
       directory_consent: input.directory_consent,
+      ai_opt_out: input.ai_opt_out,
       offers: tags.offers,
       seeks: tags.seeks,
       topics: tags.topics,
@@ -62,7 +64,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
       console.error("[join] realtime notify failed", e);
     }
     try {
-      await recompute(ev.id, member_id, { signal: aiSignal });
+      await recompute(ev.id, member_id, { signal: aiSignal, aiEnabled });
       await notifyEvent(ev.id);
     } catch (e) {
       console.error("[join] recompute or realtime notify failed", e);

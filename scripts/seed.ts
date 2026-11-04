@@ -12,7 +12,13 @@ type Sample = { sample_id: number; name: string; line: string; speak_on?: string
 async function upsertEvent(db: ReturnType<typeof admin>, communityId: string, slug: string, name: string) {
   const { data, error } = await db
     .from("events")
-    .upsert({ slug, name, community_id: communityId, admin_token_hash: hashToken(randomBytes(32).toString("base64url")) }, { onConflict: "slug" })
+    .upsert({
+      slug,
+      name,
+      community_id: communityId,
+      admin_token_hash: hashToken(randomBytes(32).toString("base64url")),
+      ai_enabled: Boolean(process.env.XAI_API_KEY),
+    }, { onConflict: "slug" })
     .select("id,community_id")
     .single();
   if (error) throw error;
@@ -54,7 +60,7 @@ async function main() {
 
   const toRow = (s: Sample) => ({
     name: s.name, line: s.line, speak_on: s.speak_on ?? null, x_handle: null, contact: null,
-    contact_consent: false, directory_consent: true, is_sample: true, person_key: `sample:${s.sample_id}`,
+    contact_consent: false, directory_consent: true, ai_opt_out: false, is_sample: true, person_key: `sample:${s.sample_id}`,
   });
 
   // A past event first, so community memory shows "seen at 2 events".

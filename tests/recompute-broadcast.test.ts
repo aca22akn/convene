@@ -37,6 +37,7 @@ describe("recompute broadcasts committed intros", () => {
     admin.mockReset().mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === "members") return membersQuery;
+        if (table === "events") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { ai_enabled: false }, error: null }) }) }) };
         introQueryCount += 1;
         return introQueryCount === 1 ? existingQuery : insertQuery;
       }),

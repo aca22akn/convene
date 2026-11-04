@@ -9,7 +9,7 @@ export const PUBLIC_MEMBER_COLS =
   "id,event_id,person_id,name,line,x_handle,speak_on,contact_consent,offers,seeks,topics,speak_topics,is_sample,created_at";
 
 export async function getEvent(slug: string): Promise<EventRow | null> {
-  const { data, error } = await admin().from("events").select("id,slug,name,community_id,created_at,member_cap").eq("slug", slug).maybeSingle();
+  const { data, error } = await admin().from("events").select("id,slug,name,community_id,created_at,member_cap,ai_enabled").eq("slug", slug).maybeSingle();
   if (error) throw error;
   return (data as EventRow) ?? null;
 }
