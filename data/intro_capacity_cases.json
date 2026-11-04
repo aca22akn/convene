@@ -1,0 +1,26 @@
+{
+  "maxIntros": 2,
+  "members": [
+    { "id": "rA", "is_sample": false },
+    { "id": "rB", "is_sample": false },
+    { "id": "rC", "is_sample": false },
+    { "id": "rD", "is_sample": false },
+    { "id": "S1", "is_sample": true },
+    { "id": "S2", "is_sample": true },
+    { "id": "S3", "is_sample": true }
+  ],
+  "existing": [
+    { "a_id": "rA", "b_id": "rC" },
+    { "a_id": "rA", "b_id": "rD" },
+    { "a_id": "S1", "b_id": "S2" },
+    { "a_id": "S1", "b_id": "S3" }
+  ],
+  "proposed": [
+    { "a_id": "rA", "b_id": "S1", "score": 0.9, "reasons": [] },
+    { "a_id": "S2", "b_id": "S3", "score": 0.6, "reasons": [] },
+    { "a_id": "rB", "b_id": "S2", "score": 0.8, "reasons": [] },
+    { "a_id": "rB", "b_id": "S3", "score": 0.7, "reasons": [] },
+    { "a_id": "S2", "b_id": "S1", "score": 0.5, "reasons": [] }
+  ],
+  "expectedInserted": ["S2|S3", "rB|S2", "rB|S3"]
+}

@@ -54,4 +54,12 @@ describe("per-event and per-attendee AI controls", () => {
     expect(rerankCandidates(rows, [], "opted")).toEqual([]);
     expect(rerankCandidates(rows, [], "new").map((row) => row.id)).toEqual(["eligible"]);
   });
+
+  it("defensively excludes opted-out people even when rerank is called directly", async () => {
+    create.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ scores: [] }) } }] });
+    await rerank(member("subject"), [member("opted", true), member("eligible")], { eventId: "event-1" });
+    const prompt = String(create.mock.calls[0]?.[0]?.messages?.[1]?.content ?? "");
+    expect(prompt).not.toContain("Person opted");
+    expect(prompt).toContain("Person eligible");
+  });
 });

@@ -23,3 +23,4 @@ Event data is retained for `RETENTION_DAYS` days (365 by default) and removed da
 | `created_at` | Timestamp | Organiser and server-side matching | No | Drives event retention; deleted with event |
 | `directory_consent` | Boolean | Organiser and directory filter | No | Deleted with event |
 | `ai_opt_out` | Boolean | Organiser and server-side AI filtering | No | Deleted with event |
+| `source_guest_id` | Text, nullable | Server-side Luma import deduplication | No | Deleted with event |

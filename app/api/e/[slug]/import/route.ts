@@ -32,10 +32,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     maxMembers: ev.member_cap || envLimit("MAX_MEMBERS_PER_EVENT", 200),
     aiEnabled,
   });
-  await notifyEvent(ev.id).catch((e) => console.error("[import] realtime notify failed", e));
-  if (result.imported.length) await recompute(ev.id, undefined, { aiEnabled: ev.ai_enabled === true }).catch((e) => console.error("[import] recompute failed", e));
+  if (result.imported.length) {
+    await notifyEvent(ev.id).catch((e) => console.error("[import] realtime notify failed", e));
+    await recompute(ev.id, undefined, { aiEnabled }).catch((e) => console.error("[import] recompute failed", e));
+  }
   return json({
     imported: result.imported.length,
+    failed: result.failed,
     skipped_full: result.skipped_full,
     line_column: lineColumn,
     speak_column: speakColumn,

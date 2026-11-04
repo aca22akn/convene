@@ -34,10 +34,20 @@ export function capacities(members: Pick<Member, "id" | "is_sample">[], existing
 type Caps = ReturnType<typeof capacities>;
 
 /** Can a new intro between x and y still be made? */
-function pairOpen(c: Caps, x: string, y: string): boolean {
+export function canAddIntro(c: Caps, x: string, y: string): boolean {
   if ((c.cap.get(x) ?? 0) <= 0 || (c.cap.get(y) ?? 0) <= 0) return false;
   if (c.sample.get(x) && c.sample.get(y)) return (c.strict.get(x) ?? 0) > 0 && (c.strict.get(y) ?? 0) > 0;
   return true;
+}
+
+/** Apply a committed pair to a mutable capacity snapshot. */
+export function addIntroCapacity(c: Caps, x: string, y: string): void {
+  const bothSample = c.sample.get(x) && c.sample.get(y);
+  for (const id of [x, y]) {
+    if (!c.cap.has(id)) continue;
+    c.strict.set(id, (c.strict.get(id) ?? 0) - 1);
+    if (!bothSample || !c.sample.get(id)) c.cap.set(id, (c.cap.get(id) ?? 0) - 1);
+  }
 }
 
 /** Who the new member's single Grok call should score: top-k by tag score, topped up with zero-overlap people. */
@@ -47,7 +57,7 @@ export function rerankCandidates(members: Member[], existing: ExistingIntro[], n
   if (!me || me.ai_opt_out || (caps.cap.get(me.id) ?? 0) <= 0) return [];
   const done = new Set(existing.map((i) => pairKey(i.a_id, i.b_id)));
   return members
-    .filter((o) => o.id !== me.id && !o.ai_opt_out && pairOpen(caps, me.id, o.id) && !done.has(pairKey(me.id, o.id)))
+    .filter((o) => o.id !== me.id && !o.ai_opt_out && canAddIntro(caps, me.id, o.id) && !done.has(pairKey(me.id, o.id)))
     .map((o) => ({ o, s: tagScore(me, o) }))
     // highest tag score first, then most recent joiners (they are still waiting for intros)
     .sort((p, q) => q.s - p.s || (q.o.created_at > p.o.created_at ? 1 : q.o.created_at < p.o.created_at ? -1 : p.o.id < q.o.id ? -1 : 1))
@@ -69,7 +79,7 @@ export function planIntros(
   const eligible = members.filter((m) => (cap.get(m.id) ?? 0) > 0);
   const done = new Set(existing.map((i) => pairKey(i.a_id, i.b_id)));
   const edges = new Map<string, Edge>();
-  for (const e of candidates(eligible)) if (!done.has(pairKey(e.a, e.b)) && pairOpen(caps, e.a, e.b)) edges.set(pairKey(e.a, e.b), e);
+  for (const e of candidates(eligible)) if (!done.has(pairKey(e.a, e.b)) && canAddIntro(caps, e.a, e.b)) edges.set(pairKey(e.a, e.b), e);
 
   if (newMemberId && rerankMap) {
     const me = members.find((m) => m.id === newMemberId);
@@ -78,7 +88,7 @@ export function planIntros(
       for (const [cid, r] of rerankMap) {
         const other = members.find((m) => m.id === cid);
         if (!other || other.id === me.id || done.has(pairKey(me.id, cid))) continue;
-        if (!pairOpen(caps, me.id, cid)) continue;
+        if (!canAddIntro(caps, me.id, cid)) continue;
         const ts = tagScore(me, other);
         const norm = maxTag > 0 ? Math.min(1, ts / maxTag) : 0;
         const [a, b] = me.id < cid ? [me.id, cid] : [cid, me.id];
@@ -89,7 +99,14 @@ export function planIntros(
 
   const byId = new Map(members.map((m) => [m.id, m]));
   // Rounds continue until no eligible edge is left, so a recompute right after is a no-op (idempotent).
-  return assignBlossom([...edges.values()], cap, Number.POSITIVE_INFINITY).map((e) => {
+  const assigned = assignBlossom([...edges.values()], cap, Number.POSITIVE_INFINITY);
+  const accepted: Edge[] = [];
+  for (const edge of assigned) {
+    if (!canAddIntro(caps, edge.a, edge.b)) continue;
+    accepted.push(edge);
+    addIntroCapacity(caps, edge.a, edge.b);
+  }
+  return accepted.map((e) => {
     const grounded = e.reasons.filter((r) => r.grounded);
     return {
       event_id: eventId,
@@ -101,7 +118,7 @@ export function planIntros(
   });
 }
 
-/** Load, plan, insert. Never throws on Grok failure (falls back to tags only). Idempotent. */
+/** Load and plan outside the transaction; the database serializes and rechecks the commit. */
 export async function recompute(eventId: string, newMemberId?: string, options: { signal?: AbortSignal; aiEnabled?: boolean } = {}): Promise<Intro[]> {
   const db = admin();
   const [{ data: members, error: me }, { data: existing, error: ie }] = await Promise.all([
@@ -125,14 +142,27 @@ export async function recompute(eventId: string, newMemberId?: string, options: 
     if (me2 && cands.length) rr = await rerank(me2, cands, { eventId, signal: options.signal, enabled: aiEnabled }).catch(() => null);
   }
 
-  const planned = planIntros(ms, ex, newMemberId, rr);
-  if (planned.length === 0) return [];
-  const { data, error } = await db
-    .from("intros")
-    .upsert(planned, { onConflict: "event_id,a_id,b_id", ignoreDuplicates: true })
-    .select();
-  if (error) throw error;
-  const inserted = (data ?? []) as Intro[];
+  let currentMembers = ms;
+  let currentExisting = ex;
+  let planned = planIntros(currentMembers, currentExisting, newMemberId, rr);
+  const inserted: Intro[] = [];
+  for (let retry = 0; planned.length > 0 && retry <= 2; retry++) {
+    const { data, error } = await db.rpc("convene_commit_intros", { p_event: eventId, p_pairs: planned });
+    if (error) throw error;
+    const committed = (data ?? []) as Intro[];
+    inserted.push(...committed);
+    if (committed.length >= planned.length || retry === 2) break;
+    const [{ data: freshMembers, error: freshMembersError }, { data: freshIntros, error: freshIntrosError }] = await Promise.all([
+      db.from("members").select("*").eq("event_id", eventId).order("created_at"),
+      db.from("intros").select("a_id,b_id").eq("event_id", eventId),
+    ]);
+    if (freshMembersError) throw freshMembersError;
+    if (freshIntrosError) throw freshIntrosError;
+    currentMembers = (freshMembers ?? []) as Member[];
+    currentExisting = (freshIntros ?? []) as ExistingIntro[];
+    if (newMemberId && (capacities(currentMembers, currentExisting).cap.get(newMemberId) ?? 0) <= 0) break;
+    planned = planIntros(currentMembers, currentExisting, newMemberId, rr);
+  }
   if (inserted.length > 0) {
     await notifyEvent(eventId).catch((e) => console.error("[recompute] realtime notify failed", e));
   }

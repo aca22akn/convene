@@ -6,9 +6,11 @@ import { keywordExtract } from "../lib/keywords";
 import { assignBlossom, assignGreedy, candidates, pairKey, tagScore, templateReasons } from "../lib/match";
 import { planIntros, rerankCandidates } from "../lib/recompute";
 import { RERANK_MODEL, rerank, rerankWeight, type RerankResult } from "../lib/rerank";
-import type { Edge, Member } from "../lib/types";
+import { JoinInput, TAGS, type Edge, type Member } from "../lib/types";
+import { isGrounded } from "../lib/ground";
 
 type Sample = { sample_id: number; name: string; line: string; speak_on?: string | null };
+type AdversarialSample = { id: string; name: string; line: string; speak_on?: string | null };
 type Pair = { a: number; b: number; label: string };
 
 const samples: Sample[] = JSON.parse(readFileSync("data/sample_members.json", "utf8")).members;
@@ -154,7 +156,57 @@ async function main() {
   console.log("README.md updated.");
 }
 
-main().catch((e) => {
+async function adversarialMain() {
+  if (!hasKey) throw new Error("Adversarial live eval requires XAI_API_KEY; no model calls were made.");
+  const fixture: { members: AdversarialSample[] } = JSON.parse(readFileSync("data/adversarial_members.json", "utf8"));
+  const valid = fixture.members.filter((sample) => JoinInput.safeParse({ name: sample.name, line: sample.line, speak_on: sample.speak_on }).success);
+  const overlong = fixture.members.length - valid.length;
+  const extracted = await pool(valid, 4, (sample) => extract(sample.line, sample.speak_on));
+  const profiles: Member[] = extracted.map((result, index) => {
+    if (!result.ok) throw result.error;
+    const sample = valid[index]!;
+    return {
+      id: `adversarial-${sample.id}`,
+      event_id: "adversarial-eval",
+      name: sample.name,
+      line: sample.line,
+      speak_on: sample.speak_on ?? null,
+      contact_consent: false,
+      offers: result.value.offers,
+      seeks: result.value.seeks,
+      topics: result.value.topics,
+      speak_topics: result.value.speak_topics,
+      is_sample: false,
+      created_at: new Date(Date.UTC(2026, 10, 4, 12, 0, index)).toISOString(),
+    };
+  });
+  let tagsOutsideEnum = 0;
+  for (const profile of profiles) {
+    tagsOutsideEnum += [...profile.offers, ...profile.seeks, ...profile.topics, ...profile.speak_topics]
+      .filter((tag) => !(TAGS as readonly string[]).includes(tag)).length;
+  }
+
+  let outOfRangeScores = 0;
+  let ungroundedReasonsKept = 0;
+  const subject = profiles[0];
+  if (subject) {
+    const scored = await pool(profiles.slice(1), 4, (candidate) => rerank(subject, [candidate]));
+    for (let index = 0; index < scored.length; index += 1) {
+      const result = scored[index]!;
+      if (!result.ok) throw result.error;
+      for (const item of result.value?.values() ?? []) {
+        if (!Number.isInteger(item.score) || item.score < 0 || item.score > 10) outOfRangeScores += 1;
+        const candidate = profiles[index + 1]!;
+        ungroundedReasonsKept += item.reasons.filter((reason) => !isGrounded(reason.quote, subject, candidate)).length;
+      }
+    }
+  }
+  const report = { mode: "adversarial", members: fixture.members.length, overlongRejected: overlong, tagsOutsideEnum, outOfRangeScores, ungroundedReasonsKept };
+  console.log(JSON.stringify(report, null, 2));
+  if (tagsOutsideEnum || outOfRangeScores || ungroundedReasonsKept || overlong < 1) process.exitCode = 1;
+}
+
+(process.argv.includes("--adversarial") ? adversarialMain : main).call(null).catch((e) => {
   console.error(e);
   process.exit(1);
 });

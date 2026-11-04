@@ -1,7 +1,25 @@
 // Pure builders for organiser downloads.
 import type { Intro, Member } from "./types";
 
-const vEsc = (s: string) => s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/([,;])/g, "\\$1");
+const vEsc = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/([,;])/g, "\\$1");
+
+function foldVCardLine(line: string): string[] {
+  const output: string[] = [];
+  let current = "";
+  let bytes = 0;
+  for (const character of line) {
+    const size = Buffer.byteLength(character, "utf8");
+    if (bytes + size > 75) {
+      output.push(current);
+      current = " ";
+      bytes = 1;
+    }
+    current += character;
+    bytes += size;
+  }
+  output.push(current);
+  return output;
+}
 
 /** vCard 3.0 for members who ticked "share my contact". Everyone else is skipped. */
 export function buildVcf(members: Pick<Member, "name" | "line" | "contact" | "contact_consent" | "x_handle">[], eventName: string): string {
@@ -12,15 +30,22 @@ export function buildVcf(members: Pick<Member, "name" | "line" | "contact" | "co
     const lines = ["BEGIN:VCARD", "VERSION:3.0", `FN:${vEsc(m.name)}`, `N:${vEsc(m.name)};;;;`];
     if (c.includes("@")) lines.push(`EMAIL;TYPE=INTERNET:${vEsc(c)}`);
     else lines.push(`TEL;TYPE=CELL:${c.replace(/[^\d+]/g, "")}`);
-    if (m.x_handle) lines.push(`URL:https://x.com/${m.x_handle.replace(/^@/, "")}`);
+    const handle = m.x_handle?.replace(/^@/, "");
+    if (handle && /^[A-Za-z0-9_]{1,15}$/.test(handle)) lines.push(`URL:${vEsc(`https://x.com/${encodeURIComponent(handle)}`)}`);
     lines.push(`NOTE:${vEsc(`${m.line} (met at ${eventName})`)}`, "END:VCARD");
-    cards.push(lines.join("\r\n"));
+    cards.push(lines.flatMap(foldVCardLine).join("\r\n"));
   }
   return cards.join("\r\n") + (cards.length ? "\r\n" : "");
 }
 
+function csvString(value: string): string {
+  return /^[\s]*[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 const csvCell = (v: unknown) => {
-  const s = v == null ? "" : Array.isArray(v) ? v.join(";") : String(v);
+  const s = v == null ? "" : Array.isArray(v)
+    ? v.map((item) => typeof item === "string" ? csvString(item) : item == null ? "" : String(item)).join(";")
+    : typeof v === "string" ? csvString(v) : String(v);
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 export const toCsv = (header: string[], rows: unknown[][]) =>
@@ -42,7 +67,7 @@ export function buildIntrosCsv(intros: Intro[], members: Pick<Member, "id" | "na
   return toCsv(
     ["person_a", "person_b", "score", "reason_1", "reason_2", "created_at"],
     intros.map((i) => [
-      name.get(i.a_id) ?? i.a_id, name.get(i.b_id) ?? i.b_id, i.score.toFixed(3),
+      name.get(i.a_id) ?? i.a_id, name.get(i.b_id) ?? i.b_id, i.score,
       i.reasons[0]?.text ?? "", i.reasons[1]?.text ?? "", i.created_at,
     ]),
   );

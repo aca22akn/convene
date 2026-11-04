@@ -49,7 +49,8 @@ describe("POST /api/e/[slug]/import broadcasts committed members", () => {
     expect(response.status).toBe(200);
     expect(insertMembers).toHaveBeenCalledOnce();
     expect(insertMembers).toHaveBeenCalledWith(event, expect.any(Array), 6, { maxMembers: 200, aiEnabled: false });
-    expect(await response.json()).toMatchObject({ ai_used: false });
+    expect(await response.json()).toMatchObject({ ai_used: false, failed: [] });
+    expect(recompute).toHaveBeenCalledWith(event.id, undefined, { aiEnabled: false });
     expect(notifyEvent).toHaveBeenCalledOnce();
     expect(notifyEvent).toHaveBeenCalledWith(event.id);
   });
@@ -60,6 +61,16 @@ describe("POST /api/e/[slug]/import broadcasts committed members", () => {
     }), { params: Promise.resolve({ slug: "demo" }) });
     expect(response.status).toBe(200);
     expect(insertMembers).toHaveBeenCalledWith(event, expect.any(Array), 6, { maxMembers: 200, aiEnabled: true });
+    expect(recompute).toHaveBeenCalledWith(event.id, undefined, { aiEnabled: true });
+  });
+
+  it("reports row failures while recomputing once for successful rows", async () => {
+    insertMembers.mockResolvedValueOnce({ imported: Array.from({ length: 9 }, (_, index) => `member-${index + 1}`), failed: [{ row: 3, reason: "injected failure" }], skipped_full: 0, extraction: ["keywords"] });
+    const response = await POST(new Request("http://localhost/api/e/demo/import", {
+      method: "POST", headers: { "x-ai-processing-acknowledged": "true" }, body: "Name,Question\nAda,Building tools",
+    }), { params: Promise.resolve({ slug: "demo" }) });
+    expect(await response.json()).toMatchObject({ imported: 9, failed: [{ row: 3, reason: "injected failure" }] });
+    expect(recompute).toHaveBeenCalledOnce();
   });
 
   it("returns 429 from the import scope limiter", async () => {

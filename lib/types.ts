@@ -16,7 +16,7 @@ export type Tag = z.infer<typeof Tag>;
 export const JoinInput = z.object({
   name: z.string().trim().min(1).max(80),
   line: z.string().trim().min(3).max(280),
-  x_handle: z.string().trim().max(40).optional().nullable(),
+  x_handle: z.string().trim().regex(/^@?[A-Za-z0-9_]{1,15}$/).optional().nullable(),
   speak_on: z.string().trim().max(160).optional().nullable(),
   contact: z.string().trim().max(120).optional().nullable(),
   contact_consent: z.boolean().default(false),

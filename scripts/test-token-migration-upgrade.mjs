@@ -153,7 +153,7 @@ async function main() {
       .single();
     if (communityError) throw communityError;
 
-    // Give every row an id because PostgREST uses one column set for this batch.
+    // Provide ids and timestamps explicitly because PostgREST uses one column set for this batch.
     const { error: eventError } = await service.from("events").insert([
       {
         id: "10000000-0000-4000-8000-000000000003",
@@ -161,6 +161,7 @@ async function main() {
         name: "Legacy shared A",
         community_id: community.id,
         admin_token: communityToken,
+        created_at: "2026-11-04T12:00:00.000Z",
       },
       {
         id: "10000000-0000-4000-8000-000000000004",
@@ -168,6 +169,7 @@ async function main() {
         name: "Legacy shared B",
         community_id: community.id,
         admin_token: communityToken,
+        created_at: "2026-11-04T12:00:00.000Z",
       },
       {
         id: "10000000-0000-4000-8000-000000000005",
@@ -175,9 +177,10 @@ async function main() {
         name: "Legacy event",
         community_id: community.id,
         admin_token: eventToken,
+        created_at: "2026-11-04T12:00:00.000Z",
       },
-      { id: "10000000-0000-4000-8000-000000000001", slug: "migration-upgrade-duplicate-a", name: "Legacy duplicate A", community_id: community.id, admin_token: duplicateEventToken },
-      { id: "10000000-0000-4000-8000-000000000002", slug: "migration-upgrade-duplicate-b", name: "Legacy duplicate B", community_id: community.id, admin_token: duplicateEventToken },
+      { id: "10000000-0000-4000-8000-000000000001", slug: "migration-upgrade-duplicate-a", name: "Legacy duplicate A", community_id: community.id, admin_token: duplicateEventToken, created_at: "2026-11-04T12:00:00.000Z" },
+      { id: "10000000-0000-4000-8000-000000000002", slug: "migration-upgrade-duplicate-b", name: "Legacy duplicate B", community_id: community.id, admin_token: duplicateEventToken, created_at: "2026-11-04T12:00:00.000Z" },
     ]);
     if (eventError) throw eventError;
 
