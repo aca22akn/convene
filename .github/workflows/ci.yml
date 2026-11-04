@@ -39,6 +39,16 @@ jobs:
           NEXT_PUBLIC_BASE_URL: http://127.0.0.1:3173
           MAX_MEMBERS_PER_EVENT: "200"
           AI_DAILY_CALL_LIMIT: "3000"
+          AI_EVENT_DAILY_CALL_LIMIT: "400"
+          JOIN_IP_LIMIT: "8"
+          JOIN_EVENT_LIMIT: "400"
+          EVENT_CREATE_IP_LIMIT: "5"
+          EVENT_CREATE_GLOBAL_LIMIT: "200"
+          IMPORT_LIMIT: "6"
+          ASK_MINUTE_LIMIT: "5"
+          ASK_HOUR_LIMIT: "20"
+          AUTH_EXCHANGE_LIMIT: "10"
+          EVENT_DELETE_LIMIT: "5"
           RETENTION_DAYS: "365"
 
   integration:

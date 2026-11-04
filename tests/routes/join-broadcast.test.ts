@@ -8,6 +8,7 @@ const { admin, after, extract, getEvent, notifyEvent, recompute } = vi.hoisted((
   notifyEvent: vi.fn(),
   recompute: vi.fn(),
 }));
+const { limit } = vi.hoisted(() => ({ limit: vi.fn(async (): Promise<Response | null> => null) }));
 
 vi.mock("next/server", () => ({ after }));
 vi.mock("@/lib/db", () => ({ admin }));
@@ -20,6 +21,7 @@ vi.mock("@/lib/extract", () => ({ extract }));
 vi.mock("@/lib/people", () => ({ personKey: vi.fn(() => null), upsertPerson: vi.fn() }));
 vi.mock("@/lib/realtime", () => ({ notifyEvent }));
 vi.mock("@/lib/recompute", () => ({ recompute }));
+vi.mock("@/lib/ratelimit", () => ({ limit, envLimit: (_name: string, fallback: number) => fallback }));
 
 import { POST } from "@/app/api/e/[slug]/join/route";
 
@@ -29,6 +31,7 @@ const callbacks: (() => Promise<void>)[] = [];
 describe("POST /api/e/[slug]/join broadcasts updates", () => {
   beforeEach(() => {
     callbacks.length = 0;
+    limit.mockReset().mockResolvedValue(null);
     admin.mockReset().mockReturnValue({
       from: vi.fn(() => ({
         insert: vi.fn(() => ({
@@ -59,7 +62,22 @@ describe("POST /api/e/[slug]/join broadcasts updates", () => {
 
     expect(notifyEvent).toHaveBeenCalledTimes(2);
     expect(notifyEvent).toHaveBeenNthCalledWith(1, event.id);
-    expect(recompute).toHaveBeenCalledWith(event.id, "member-1");
+    expect(recompute).toHaveBeenCalledWith(event.id, "member-1", { signal: expect.any(AbortSignal) });
     expect(notifyEvent).toHaveBeenNthCalledWith(2, event.id);
+  });
+
+  it("returns 429 from the IP limiter before looking up an event", async () => {
+    limit.mockResolvedValueOnce(Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "1" } }));
+    const response = await POST(new Request("http://localhost/api/e/demo/join", { method: "POST", body: "{}" }), { params: Promise.resolve({ slug: "demo" }) });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(getEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns 413 for an oversized request and rejects unknown input keys", async () => {
+    const oversized = await POST(new Request("http://localhost/api/e/demo/join", { method: "POST", body: JSON.stringify({ name: "Ada", line: "x".repeat(5000) }) }), { params: Promise.resolve({ slug: "demo" }) });
+    expect(oversized.status).toBe(413);
+    const unknown = await POST(new Request("http://localhost/api/e/demo/join", { method: "POST", body: JSON.stringify({ name: "Ada", line: "Building useful tools", unexpected: true }) }), { params: Promise.resolve({ slug: "demo" }) });
+    expect(unknown.status).toBe(400);
   });
 });

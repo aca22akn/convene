@@ -4,10 +4,13 @@ import { eventFilterForAuth, originMatches, resolveRequestAuth, storeAccessToken
 import { bad, json } from "@/lib/api";
 import { grok, GROK_MODEL } from "@/lib/grok";
 import { communityGaps, findSpeakers, searchMembers } from "@/lib/mcpTools";
+import { envLimit, limit } from "@/lib/ratelimit";
+import { aiCallAllowed } from "@/lib/ai-budget";
+import { bodyErrorResponse, readLimitedJson } from "@/lib/request-body";
 
 export const maxDuration = 60;
 
-const Body = z.object({ question: z.string().trim().min(2).max(500) });
+const Body = z.object({ question: z.string().trim().min(2).max(500) }).strict();
 
 const INSTRUCTIONS =
   "You help an organiser understand members in the authorised event or community scope. Use the convene MCP tools to look up real members; " +
@@ -16,10 +19,12 @@ const INSTRUCTIONS =
 
 /** "Ask your community": Grok answers using our own MCP server as a remote tool. */
 export async function POST(req: Request, ctx: { params: Promise<{ slug: string }> }) {
-  const { slug } = await ctx.params;
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const raw = await readLimitedJson(req, 2 * 1024);
+  if (!raw.ok) return bodyErrorResponse(raw);
+  const parsed = Body.safeParse(raw.value);
   if (!parsed.success) return bad("invalid input");
   const { question } = parsed.data;
+  const { slug } = await ctx.params;
   const auth = await resolveRequestAuth(req);
   if (auth?.via === "cookie" && !originMatches(req)) return bad("origin mismatch", 403);
   const { data: c } = await admin().from("communities").select("id,slug,name").eq("slug", slug).maybeSingle();
@@ -33,10 +38,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     if (!event || event.community_id !== c.id) return bad("unauthorized", 401);
   }
 
+  const scopeId = auth.scope.type === "community" ? auth.scope.communityId : auth.scope.eventId;
+  const minuteLimited = await limit(req, "ask-minute", { limit: envLimit("ASK_MINUTE_LIMIT", 5), windowSeconds: 60, extraKey: scopeId });
+  if (minuteLimited) return minuteLimited;
+  const hourLimited = await limit(req, "ask-hour", { limit: envLimit("ASK_HOUR_LIMIT", 20), windowSeconds: 3600, extraKey: scopeId });
+  if (hourLimited) return hourLimited;
+
   const client = grok();
   const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin;
   const remote = !/localhost|127\.0\.0\.1/.test(base);
-  if (client && remote) {
+  if (client && remote && await aiCallAllowed(scopeId)) {
     try {
       const llmToken = await storeAccessToken(auth.scope, "llm", LLM_TOKEN_TTL_SECONDS);
       const res = await client.responses.create({
@@ -58,7 +69,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     communityGaps(c.id, memberScope),
   ]);
   const context = { search_members: people.slice(0, 10), find_speakers: speakers.slice(0, 5), community_gaps: gaps };
-  if (client) {
+  if (client && await aiCallAllowed(scopeId)) {
     try {
       const res = await client.chat.completions.create({
         model: GROK_MODEL,

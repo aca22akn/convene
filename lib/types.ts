@@ -21,7 +21,7 @@ export const JoinInput = z.object({
   contact: z.string().trim().max(120).optional().nullable(),
   contact_consent: z.boolean().default(false),
   directory_consent: z.boolean().default(false),
-});
+}).strict();
 export type JoinInput = z.infer<typeof JoinInput>;
 
 /** Output of extraction: every array only contains tags from TAGS. */

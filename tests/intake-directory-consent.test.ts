@@ -16,6 +16,7 @@ describe("bulk intake directory consent", () => {
     const inserted: Record<string, unknown>[] = [];
     admin.mockReturnValue({
       from: vi.fn(() => ({
+        select: vi.fn(() => ({ eq: vi.fn(async () => ({ count: 0, error: null })) })),
         insert: vi.fn((row: Record<string, unknown>) => {
           inserted.push(row);
           return { select: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: `member-${inserted.length}` }, error: null })) })) };

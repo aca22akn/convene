@@ -123,6 +123,7 @@ Note: the keyword fallback was written while looking at this same sample data, s
 
 ## Known limits
 
+- **Abuse and cost budgets.** Rooms cap at 200 members by default. Defaults are 8 joins per 10 minutes per IP and 400 per hour per event; 5 event creations per hour per IP and 200 per day globally; 6 imports per hour per scope; 5 Ask/MCP calls per minute and 20 per hour per scope; and 10 token exchanges per 10 minutes per IP. xAI calls are capped at 3,000 per UTC day globally and 400 per event. Every value is configurable with the variables in `.env.example`; missing client IPs share a stricter two-request bucket.
 - **Latency.** Join-to-intro is typically ~10 s on Vercel with Grok (extraction + one rerank call); it degrades to keyword extraction and tag-only matching when Grok is slow or absent. The eval's latency figures below were measured locally, so they include network round-trips to xAI from a laptop.
 - **Blossom vs greedy.** Blossom maximises total match weight, which is not the same as matching the human labels: on the 40-person sample its recall is slightly below greedy's. We use it because it is the optimal assignment for the weights, and keep greedy for comparison.
 - **Concurrency.** Two people joining at the same instant can, rarely, push someone to 3 intros (no row lock); duplicate pairs are prevented by a unique constraint.

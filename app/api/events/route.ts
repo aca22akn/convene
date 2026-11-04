@@ -3,6 +3,8 @@ import { z } from "zod";
 import { admin } from "@/lib/db";
 import { bad, json, slugify } from "@/lib/api";
 import { hashToken, tokenHashMatches } from "@/lib/auth";
+import { envLimit, limit } from "@/lib/ratelimit";
+import { bodyErrorResponse, readLimitedJson } from "@/lib/request-body";
 
 const MAX_SLUG_ATTEMPTS = 5;
 
@@ -11,11 +13,17 @@ const Body = z.object({
   community_slug: z.string().trim().max(40).optional(),
   community_name: z.string().trim().max(80).optional(),
   community_token: z.string().optional(), // required to add an event to an existing community
-});
+}).strict();
 
 /** Create an event (and its community if new). Admin tokens are returned once, here. */
 export async function POST(req: Request) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const ipLimited = await limit(req, "event-create-ip", { limit: envLimit("EVENT_CREATE_IP_LIMIT", 5), windowSeconds: 3600 });
+  if (ipLimited) return ipLimited;
+  const globallyLimited = await limit(req, "event-create-global", { limit: envLimit("EVENT_CREATE_GLOBAL_LIMIT", 200), windowSeconds: 86400, extraKey: "global" });
+  if (globallyLimited) return globallyLimited;
+  const raw = await readLimitedJson(req, 4 * 1024);
+  if (!raw.ok) return bodyErrorResponse(raw);
+  const parsed = Body.safeParse(raw.value);
   if (!parsed.success) return bad("invalid input");
   const { name, community_name, community_token } = parsed.data;
   const db = admin();
@@ -41,7 +49,7 @@ export async function POST(req: Request) {
     const slug = generateEventSlug(name);
     const result = await db
       .from("events")
-      .insert({ slug, name, community_id: community!.id, admin_token_hash: hashToken(eventToken) })
+      .insert({ slug, name, community_id: community!.id, admin_token_hash: hashToken(eventToken), member_cap: envLimit("MAX_MEMBERS_PER_EVENT", 200) })
       .select("slug")
       .single();
     if (!result.error) {

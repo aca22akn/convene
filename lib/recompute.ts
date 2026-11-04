@@ -102,7 +102,7 @@ export function planIntros(
 }
 
 /** Load, plan, insert. Never throws on Grok failure (falls back to tags only). Idempotent. */
-export async function recompute(eventId: string, newMemberId?: string): Promise<Intro[]> {
+export async function recompute(eventId: string, newMemberId?: string, options: { signal?: AbortSignal } = {}): Promise<Intro[]> {
   const db = admin();
   const [{ data: members, error: me }, { data: existing, error: ie }] = await Promise.all([
     db.from("members").select("*").eq("event_id", eventId).order("created_at"),
@@ -117,7 +117,7 @@ export async function recompute(eventId: string, newMemberId?: string): Promise<
   if (newMemberId) {
     const me2 = ms.find((m) => m.id === newMemberId);
     const cands = rerankCandidates(ms, ex, newMemberId);
-    if (me2 && cands.length) rr = await rerank(me2, cands).catch(() => null);
+    if (me2 && cands.length) rr = await rerank(me2, cands, { eventId, signal: options.signal }).catch(() => null);
   }
 
   const planned = planIntros(ms, ex, newMemberId, rr);

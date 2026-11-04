@@ -2,10 +2,13 @@ import { admin } from "@/lib/db";
 import { authorizeEventRequest } from "@/lib/auth";
 import { bad, getEvent, json } from "@/lib/api";
 import { notifyEvent } from "@/lib/realtime";
+import { envLimit, limit } from "@/lib/ratelimit";
 
 
 /** Delete all data for an event (members and intros cascade), plus people who no longer appear anywhere. */
 export async function DELETE(req: Request, ctx: { params: Promise<{ slug: string }> }) {
+  const limited = await limit(req, "event-delete-ip", { limit: envLimit("EVENT_DELETE_LIMIT", 5), windowSeconds: 3600 });
+  if (limited) return limited;
   const { slug } = await ctx.params;
   const ev = await getEvent(slug);
   if (!ev) return bad("event not found", 404);

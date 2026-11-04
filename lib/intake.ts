@@ -10,10 +10,17 @@ export async function insertMembers(
   ev: { id: string; community_id: string | null },
   rows: IntakeRow[],
   concurrency = 4,
-): Promise<string[]> {
+  options: { maxMembers?: number; signal?: AbortSignal; aiEnabled?: boolean } = {},
+): Promise<{ imported: string[]; failed: { row: number; reason: string }[]; skipped_full: number; extraction: ("grok" | "keywords")[] }> {
   const db = admin();
-  return pool(rows, concurrency, async (r) => {
-    const tags = await extract(r.line, r.speak_on);
+  const { count, error: countError } = await db.from("members").select("id", { count: "exact", head: true }).eq("event_id", ev.id);
+  if (countError) throw countError;
+  const configuredCap = Number(process.env.MAX_MEMBERS_PER_EVENT);
+  const cap = options.maxMembers ?? (Number.isSafeInteger(configuredCap) && configuredCap > 0 ? configuredCap : 200);
+  const remaining = Math.max(0, cap - (count ?? 0));
+  const selected = rows.slice(0, remaining);
+  const settled = await pool(selected, concurrency, async (r) => {
+    const tags = await extract(r.line, r.speak_on, { eventId: ev.id, signal: options.signal, enabled: options.aiEnabled });
     let person_id: string | null = null;
     const key = r.person_key ?? personKey(r);
     if (ev.community_id && key) person_id = await upsertPerson(ev.community_id, key, r.name).catch(() => null);
@@ -38,6 +45,12 @@ export async function insertMembers(
       .select("id")
       .single();
     if (error) throw error;
-    return data.id as string;
+    return { id: data.id as string, source: tags.source };
   });
+  return {
+    imported: settled.filter((result): result is Extract<typeof result, { ok: true }> => result.ok).map((result) => result.value.id),
+    failed: settled.flatMap((result, index) => result.ok ? [] : [{ row: index + 1, reason: result.error instanceof Error ? result.error.message : "row import failed" }]),
+    skipped_full: rows.length - selected.length,
+    extraction: settled.flatMap((result) => result.ok ? [result.value.source] : []),
+  };
 }

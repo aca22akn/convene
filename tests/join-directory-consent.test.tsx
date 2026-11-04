@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -9,6 +9,7 @@ import { JoinForm } from "@/components/JoinForm";
 
 describe("JoinForm directory consent", () => {
   beforeEach(() => {
+    cleanup();
     push.mockReset();
     localStorage.clear();
   });
@@ -32,5 +33,18 @@ describe("JoinForm directory consent", () => {
     const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
     expect(requestBody).toMatchObject({ directory_consent: true, contact_consent: false });
     expect(push).toHaveBeenCalledWith(expect.stringContaining("/e/demo/me?id=member-1"));
+  });
+
+  it("shows a clear room-full state from the join endpoint", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ error: "room_full" }), { status: 409 }),
+    ));
+    render(<JoinForm slug="demo" />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Priya Raman" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /what are you building/i }), {
+      target: { value: "Building a useful tool and looking for design feedback" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /find my people/i }));
+    expect(await screen.findByText("This room is full")).toBeTruthy();
   });
 });

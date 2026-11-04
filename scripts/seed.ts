@@ -62,13 +62,13 @@ async function main() {
   const septIds = await insertMembers(sept, samples.filter((s) => s.sample_id % 4 === 1).slice(0, 8).map(toRow));
   await db.from("events").update({ created_at: "2026-09-24T18:30:00Z" }).eq("id", sept.id);
   await recompute(sept.id);
-  console.log(`demo-sept: ${septIds.length} members`);
+  console.log(`demo-sept: ${septIds.imported.length} members`);
 
   const ev = await upsertEvent(db, community.id, "demo", "Demo Night");
   const t0 = Date.now();
   const ids = await insertMembers(ev, samples.map(toRow));
   const intros = await recompute(ev.id);
-  console.log(`demo: ${ids.length} members, ${intros.length} new intros in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  console.log(`demo: ${ids.imported.length} members, ${intros.length} new intros in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 }
 
 main().catch((e) => {

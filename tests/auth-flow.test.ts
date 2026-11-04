@@ -11,10 +11,12 @@ const fakeDb = vi.hoisted(() => ({
   lastLlmAuthorization: null as string | null,
   calls: 0,
   mcpScopes: [] as { eventIds?: string[] }[],
+  blockedRateBucket: null as string | null,
 }));
 
 vi.mock("@/lib/db", () => ({
   admin: () => ({
+    rpc: async (_name: string, args: { p_key: string }) => ({ data: !fakeDb.blockedRateBucket || !args.p_key.startsWith(fakeDb.blockedRateBucket), error: null }),
     from(table: keyof typeof fakeDb.tables) {
       let mode: "select" | "insert" | "delete" = "select";
       let payload: Record<string, unknown> | null = null;
@@ -98,6 +100,7 @@ function resetDatabase() {
   fakeDb.lastLlmAuthorization = null;
   fakeDb.calls = 0;
   fakeDb.mcpScopes = [];
+  fakeDb.blockedRateBucket = null;
 }
 
 beforeEach(() => {
@@ -158,6 +161,25 @@ describe("token scope and sessions", () => {
     const issuedSession = cookie?.match(/__Host-convene_session=([^;]+)/)?.[1];
     expect(issuedSession).toBeTruthy();
     expect(fakeDb.tables.access_tokens[0].token_hash).toBe(hashToken(issuedSession ?? ""));
+  });
+
+  it("rate-limits token exchanges with Retry-After", async () => {
+    fakeDb.blockedRateBucket = "auth-exchange-ip:";
+    const response = await exchange(new Request("https://convene.example/api/auth/exchange", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://convene.example" },
+      body: JSON.stringify({ token: eventToken }),
+    }));
+    expect(response.status).toBe(429);
+    expect(response.headers.has("retry-after")).toBe(true);
+    expect(fakeDb.tables.access_tokens).toHaveLength(0);
+  });
+
+  it("rate-limits logout requests with Retry-After", async () => {
+    fakeDb.blockedRateBucket = "auth-exchange-ip:";
+    const response = await logout(new Request("https://convene.example/api/auth/logout", { method: "POST" }));
+    expect(response.status).toBe(429);
+    expect(response.headers.has("retry-after")).toBe(true);
   });
 
   it("supports legacy organiser links with a clean 303 and logs out by deleting the session", async () => {
@@ -257,6 +279,33 @@ describe("token scope and sessions", () => {
     expect(llmToken?.token_hash).toBe(hashToken(fakeDb.lastLlmAuthorization ?? ""));
     expect(Date.parse(String(llmToken?.expires_at)) - Date.now()).toBeGreaterThan(9 * 60 * 1000);
     expect(Date.parse(String(llmToken?.expires_at)) - Date.now()).toBeLessThanOrEqual(10 * 60 * 1000);
+  });
+
+  it("rate-limits Ask requests by authorized scope with Retry-After", async () => {
+    fakeDb.tables.access_tokens.push({
+      token_hash: hashToken(sessionToken), token_type: "session", event_id: null, community_id: "c1",
+      llm: false, expires_at: new Date(Date.now() + 60_000).toISOString(),
+    });
+    fakeDb.blockedRateBucket = "ask-minute:c1";
+    const response = await ask(new Request("https://convene.example/api/c/northstar/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: `${SESSION_COOKIE}=${sessionToken}`, origin: "https://convene.example" },
+      body: JSON.stringify({ question: "Who knows databases?" }),
+    }), { params: Promise.resolve({ slug: "northstar" }) });
+    expect(response.status).toBe(429);
+    expect(response.headers.has("retry-after")).toBe(true);
+    expect(fakeDb.calls).toBe(0);
+  });
+
+  it("bounds Ask bodies and rejects unknown JSON keys", async () => {
+    const oversized = await ask(new Request("https://convene.example/api/c/northstar/ask", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: "x".repeat(3000) }),
+    }), { params: Promise.resolve({ slug: "northstar" }) });
+    expect(oversized.status).toBe(413);
+    const unknown = await ask(new Request("https://convene.example/api/c/northstar/ask", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: "Who knows design?", extra: true }),
+    }), { params: Promise.resolve({ slug: "northstar" }) });
+    expect(unknown.status).toBe(400);
   });
 
   it("limits event-token Ask results to the authorized event", async () => {

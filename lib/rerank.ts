@@ -1,5 +1,6 @@
 // Stage-2 rerank: one Grok structured-output call per new member scores its candidates 0-10 with quoted reasons.
 import { grok } from "./grok";
+import { aiCallAllowed } from "./ai-budget";
 import { groundReasons } from "./ground";
 import type { Member, Reason } from "./types";
 
@@ -42,9 +43,10 @@ const schema = {
 export const rerankWeight = (normTag: number, rerank: number) => 0.4 * normTag + 0.6 * (rerank / 10);
 
 /** Returns null when Grok is unavailable or fails; caller falls back to tag-only matching. */
-export async function rerank(newMember: Person, cands: Person[]): Promise<RerankResult | null> {
+export async function rerank(newMember: Person, cands: Person[], options: { eventId?: string; signal?: AbortSignal } = {}): Promise<RerankResult | null> {
   const client = grok();
   if (!client || cands.length === 0) return null;
+  if (options.eventId && !await aiCallAllowed(options.eventId)) return null;
   const labels = cands.map((c, i) => ({ key: `c${i + 1}`, c }));
   const prompt = [
     `A person just joined a London community event. Score how useful an in-person intro to each candidate would be, 0-10 (10 = one clearly has what the other needs).`,
@@ -61,7 +63,7 @@ export async function rerank(newMember: Person, cands: Person[]): Promise<Rerank
       model: RERANK_MODEL,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_schema", json_schema: { name: "rerank", strict: true, schema } },
-    });
+    }, options.signal ? { signal: options.signal } : undefined);
     const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as {
       scores?: { candidate: string; score: number; reasons: { text: string; quote: string }[] }[];
     };

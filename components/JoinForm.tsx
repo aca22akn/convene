@@ -50,7 +50,7 @@ export function JoinForm({ slug }: { slug: string }) {
         }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body.member_id) throw new Error(body.error ?? `Something went wrong (${res.status})`);
+      if (!res.ok || !body.member_id) throw new Error(body.error === "room_full" ? "This room is full" : body.error ?? `Something went wrong (${res.status})`);
       try {
         localStorage.setItem(`convene:${slug}`, body.member_id);
       } catch {}

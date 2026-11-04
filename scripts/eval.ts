@@ -45,7 +45,11 @@ async function main() {
   console.log(`Eval on ${samples.length} sample members, ${good.size} should_meet / ${bad.size} should_not_meet pairs. Grok: ${hasKey ? "on" : "off"}`);
 
   // Extraction (Grok if a key is set, else keyword fallback); keyword-only also kept as the no-key baseline.
-  const ext = await pool(samples, 6, (s) => extract(s.line, s.speak_on));
+  const extractionResults = await pool(samples, 6, (s) => extract(s.line, s.speak_on));
+  const ext = extractionResults.map((result) => {
+    if (!result.ok) throw result.error;
+    return result.value;
+  });
   const members: Member[] = samples.map((s, i) => ({ ...base(s, i), ...ext[i] }));
   const kwMembers: Member[] = samples.map((s, i) => ({ ...base(s, i), ...keywordExtract(s.line, s.speak_on) }));
   const extractMs = ext.map((e) => e.ms);
@@ -72,7 +76,7 @@ async function main() {
   let groundedReasons = 0;
   let totalReasons = 0;
   if (hasKey) {
-    const reranks: (RerankResult | null)[] = await pool(members, 4, async (m, i) => {
+    const rerankResults = await pool(members, 4, async (m, i) => {
       const room = members.slice(0, i + 1);
       const cands = rerankCandidates(room, [], m.id);
       const t0 = Date.now();
@@ -82,6 +86,10 @@ async function main() {
       planIntros(room, [], m.id, rr);
       latencies[i] = ext[i].ms + rerankMs + (Date.now() - t1);
       return rr;
+    });
+    const reranks: (RerankResult | null)[] = rerankResults.map((result) => {
+      if (!result.ok) throw result.error;
+      return result.value;
     });
 
     // Full graph: stage-1 edges, with every reranked pair overriding its weight per the formula.

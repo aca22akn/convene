@@ -3,6 +3,7 @@ import { admin } from "@/lib/db";
 import { POST } from "@/app/api/events/route";
 
 vi.mock("@/lib/db", () => ({ admin: vi.fn() }));
+vi.mock("@/lib/ratelimit", () => ({ limit: async () => null, envLimit: (_name: string, fallback: number) => fallback }));
 
 type FakeDbOptions = { forceCollisionOnce?: boolean };
 
