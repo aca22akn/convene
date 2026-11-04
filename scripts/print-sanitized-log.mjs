@@ -3,9 +3,14 @@ import path from "node:path";
 import { sanitizeTestDiagnostic } from "./test-env.mjs";
 
 const logPath = process.argv[2];
-if (!logPath || !path.isAbsolute(logPath) || !path.basename(logPath).startsWith("supabase-start")) {
-  throw new Error("Pass the absolute path to the temporary supabase-start log.");
+const allowedLogNames = new Set([
+  "supabase-start.log",
+  "supabase-migration-test.log",
+  "supabase-integration-test.log",
+]);
+if (!logPath || !path.isAbsolute(logPath) || !allowedLogNames.has(path.basename(logPath))) {
+  throw new Error("Pass the absolute path to a supported temporary Supabase log.");
 }
 
 const diagnostic = sanitizeTestDiagnostic(readFileSync(logPath, "utf8")).trim();
-process.stderr.write(`Sanitized local Supabase startup diagnostics:\n${diagnostic.slice(-12_000)}\n`);
+process.stderr.write(`Sanitized Supabase diagnostics from ${path.basename(logPath)}:\n${diagnostic.slice(-12_000)}\n`);

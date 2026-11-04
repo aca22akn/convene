@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { copyNodeModules } from "./copy-node-modules.mjs";
 import { createIsolatedTestEnv } from "./test-env.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -60,10 +61,8 @@ function run(command, args) {
 let passed = false;
 try {
   cpSync(root, tempRoot, { recursive: true, filter: (source) => !excludedFromTestCopy(source) });
-  cpSync(path.join(root, "node_modules"), path.join(tempRoot, "node_modules"), {
-    recursive: true,
-    dereference: true,
-  });
+  // Keep relative .bin symlinks relative so the temp workspace uses its copied dependencies.
+  copyNodeModules(path.join(root, "node_modules"), path.join(tempRoot, "node_modules"));
 
   run(npm, ["run", "build"]);
   run(npx, ["playwright", "test"]);

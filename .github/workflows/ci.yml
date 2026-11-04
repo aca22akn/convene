@@ -62,14 +62,29 @@ jobs:
             exit 1
           }
       - name: Verify token migration against legacy rows, then apply all migrations
-        run: node scripts/test-token-migration-upgrade.mjs > "$RUNNER_TEMP/supabase-migration-test.log" 2>&1
-      - run: npm run test:integration
+        id: migration-upgrade
+        run: |
+          set -o pipefail
+          node scripts/test-token-migration-upgrade.mjs 2>&1 | tee "$RUNNER_TEMP/supabase-migration-test.log"
+      - name: Print sanitized migration fixture log on failure
+        if: failure() && steps.migration-upgrade.outcome == 'failure'
+        run: node scripts/print-sanitized-log.mjs "$RUNNER_TEMP/supabase-migration-test.log"
+      - name: Run Supabase integration tests
+        id: integration-test
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee "$RUNNER_TEMP/supabase-integration-test.log"
+      - name: Print sanitized integration test log on failure
+        if: failure() && steps.integration-test.outcome == 'failure'
+        run: node scripts/print-sanitized-log.mjs "$RUNNER_TEMP/supabase-integration-test.log"
       - name: Upload local Supabase logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: supabase-integration-logs
-          path: ${{ runner.temp }}/supabase-migration-test.log
+          path: |
+            ${{ runner.temp }}/supabase-migration-test.log
+            ${{ runner.temp }}/supabase-integration-test.log
           if-no-files-found: ignore
 
   e2e:

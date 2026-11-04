@@ -8,6 +8,7 @@ import { createIsolatedTestEnv, sanitizeTestDiagnostic } from "./test-env.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+let currentStage = "status";
 
 function run(command, args, env, options = {}) {
   const result = spawnSync(command, args, {
@@ -40,6 +41,64 @@ function isLoopback(value) {
   }
 }
 
+function describeFailure(error) {
+  if (error instanceof Error) return error.stack ?? `${error.name}: ${error.message}`;
+
+  if (typeof error === "object" && error !== null) {
+    const supabaseFields = ["message", "code", "details", "hint"];
+    if (supabaseFields.some((field) => field in error)) {
+      return supabaseFields.map((field) => {
+        const value = error[field];
+        if (value === undefined || value === null || value === "") return `${field}: (none)`;
+        return `${field}: ${typeof value === "string" ? value : JSON.stringify(value)}`;
+      }).join("\n");
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return String(error);
+}
+
+async function waitForPostgrestSchema(apiUrl, serviceRoleKey, operation) {
+  const url = new URL("/rest/v1/communities?select=id&limit=1", apiUrl);
+  const deadline = Date.now() + 90_000;
+  let lastStatus = "not attempted";
+  let lastBody = "No response received.";
+
+  while (Date.now() < deadline) {
+    const pollStartedAt = Date.now();
+    try {
+      const remaining = deadline - pollStartedAt;
+      const response = await fetch(url, {
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+        signal: AbortSignal.timeout(Math.max(1, Math.min(1_500, remaining))),
+      });
+      lastStatus = String(response.status);
+      lastBody = await response.text();
+      if (response.status === 200) return;
+    } catch (error) {
+      lastStatus = "request failed";
+      lastBody = error instanceof Error ? error.message : describeFailure(error);
+    }
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const pollDelay = Math.min(2_000 - (Date.now() - pollStartedAt), remaining);
+    if (pollDelay > 0) await new Promise((resolve) => setTimeout(resolve, pollDelay));
+  }
+
+  throw new Error(
+    `PostgREST schema was not ready after ${operation} within 90 seconds; last HTTP status: ${lastStatus}; last response body: ${lastBody}`,
+  );
+}
+
 async function main() {
   if (process.env.CI !== "true") {
     throw new Error("The token migration upgrade fixture may only reset a disposable CI Supabase database.");
@@ -55,6 +114,7 @@ async function main() {
       SUPABASE_TELEMETRY_DISABLED: "1",
     });
 
+    currentStage = "status";
     const status = run(npx, ["supabase", "status", "--output", "env"], cliEnv, { capture: true });
     if (status.status !== 0) {
       const diagnostic = sanitizeTestDiagnostic(status.stderr ?? "").trim();
@@ -70,10 +130,13 @@ async function main() {
       throw new Error("Migration upgrade tests require loopback API, anon, and service-role values from local Supabase.");
     }
 
+    currentStage = "reset";
     const baseVersion = "20261022190000";
     const reset = run(npx, ["supabase", "db", "reset", "--version", baseVersion, "--yes"], cliEnv);
     if (reset.status !== 0) throw new Error(`Local Supabase reset to ${baseVersion} failed.`);
+    await waitForPostgrestSchema(apiUrl, serviceRoleKey, "database reset");
 
+    currentStage = "seed";
     const service = createClient(apiUrl, serviceRoleKey, { auth: { persistSession: false } });
     const communityToken = "local-migration-fixture-community-token";
     const eventToken = "local-migration-fixture-event-token";
@@ -94,9 +157,12 @@ async function main() {
     ]);
     if (eventError) throw eventError;
 
+    currentStage = "migration up";
     const migration = run(npx, ["supabase", "migration", "up", "--include-all"], cliEnv);
     if (migration.status !== 0) throw new Error("Applying local migrations after legacy fixture seeding failed.");
+    await waitForPostgrestSchema(apiUrl, serviceRoleKey, "migration up");
 
+    currentStage = "vitest";
     const testEnv = {
       ...cliEnv,
       API_URL: apiUrl,
@@ -121,7 +187,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  const message = error instanceof Error ? error.message : "Unknown migration upgrade test failure";
-  process.stderr.write(`Migration upgrade test failed: ${message}\n`);
+  process.stderr.write(`Migration upgrade test failed during ${currentStage}:\n${describeFailure(error)}\n`);
   process.exitCode = 1;
 });
