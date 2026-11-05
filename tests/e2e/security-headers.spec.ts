@@ -93,9 +93,10 @@ test("the CSP allows the mock pages to run without browser violations", async ({
       name: match[1].toLowerCase(),
       tag: match[0],
     }));
-    expect(styleTags, path).toHaveLength(2);
-    expect(styleTags.filter(({ name }) => name === "next-route-announcer"), path).toHaveLength(1);
-    expect(styleTags.filter(({ name, tag }) => name === "div" && /\bid="__next-route-announcer__"/.test(tag)), path).toHaveLength(1);
+    // Route announcers are client-injected, so server HTML should have zero style attributes; unexpected ones are a CSP regression.
+    const unexpectedStyleTags = styleTags.filter(({ name, tag }) =>
+      !(name === "next-route-announcer" || (name === "div" && /\bid="__next-route-announcer__"/.test(tag))));
+    expect(unexpectedStyleTags, path).toEqual([]);
 
     currentPath = path;
     await page.goto(path, { waitUntil: "load" });
