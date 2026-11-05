@@ -7,6 +7,7 @@ import type { Edge, Intro, Member } from "./types";
 
 export const MAX_INTROS = 2;
 export const RERANK_K = 8;
+const RECOMPUTE_MEMBER_COLS = "id,event_id,name,line,offers,seeks,topics,is_sample,created_at,ai_opt_out";
 
 type ExistingIntro = Pick<Intro, "a_id" | "b_id">;
 
@@ -79,7 +80,8 @@ export function planIntros(
   const eligible = members.filter((m) => (cap.get(m.id) ?? 0) > 0);
   const done = new Set(existing.map((i) => pairKey(i.a_id, i.b_id)));
   const edges = new Map<string, Edge>();
-  for (const e of candidates(eligible)) if (!done.has(pairKey(e.a, e.b)) && canAddIntro(caps, e.a, e.b)) edges.set(pairKey(e.a, e.b), e);
+  // A join only adds edges for that member; existing members' committed pairs stay untouched.
+  for (const e of candidates(eligible, 8, newMemberId)) if (!done.has(pairKey(e.a, e.b)) && canAddIntro(caps, e.a, e.b)) edges.set(pairKey(e.a, e.b), e);
 
   if (newMemberId && rerankMap) {
     const me = members.find((m) => m.id === newMemberId);
@@ -122,7 +124,7 @@ export function planIntros(
 export async function recompute(eventId: string, newMemberId?: string, options: { signal?: AbortSignal; aiEnabled?: boolean } = {}): Promise<Intro[]> {
   const db = admin();
   const [{ data: members, error: me }, { data: existing, error: ie }] = await Promise.all([
-    db.from("members").select("*").eq("event_id", eventId).order("created_at"),
+    db.from("members").select(RECOMPUTE_MEMBER_COLS).eq("event_id", eventId).order("created_at"),
     db.from("intros").select("a_id,b_id").eq("event_id", eventId),
   ]);
   if (me) throw me;

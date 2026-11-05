@@ -80,6 +80,17 @@ flowchart LR
 5. **Weight** = `0.4 · normalised tag score + 0.6 · rerank/10` (tag score only with no API key).
 6. **Assignment.** Maximum-weight matching (Edmonds' blossom) among people with spare capacity; remove those pairs and run again, so each person gets up to two intros. Existing intros never change, so a phone never "loses" a match; recompute is idempotent. A greedy version is kept for comparison.
 
+### Matching scale benchmark
+
+`npm run bench` measures pure planning on synthetic rooms. These indicative measurements are the median of nine runs after one warm-up on Windows NT build 10.0.26200, x64, Intel Core i7-12700H. Database commit timing is marked CI-only: this synthetic benchmark does not connect to a database, and SQL commit behaviour is verified by the Supabase integration job.
+
+| Members | Plan median (ms) | Pair evaluations | Database commit |
+|---:|---:|---:|---|
+| 50 | 0.90 | 144 | CI-only |
+| 100 | 1.65 | 558 | CI-only |
+| 200 | 5.76 | 2,200 | CI-only |
+| 500 | 25.35 | 13,958 | CI-only |
+
 ## Privacy
 
 <!-- PRIVACY:START -->

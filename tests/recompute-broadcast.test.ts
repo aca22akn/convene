@@ -20,10 +20,14 @@ const members = [
 
 describe("recompute broadcasts committed intros", () => {
   const committed = { id: "intro-1", event_id: "event-1", a_id: "member-a", b_id: "member-b", score: 1, reasons: [] };
+  let selectedMemberColumns: string | undefined;
 
   beforeEach(() => {
     const membersQuery = {
-      select: vi.fn(() => membersQuery),
+      select: vi.fn((columns: string) => {
+        selectedMemberColumns = columns;
+        return membersQuery;
+      }),
       eq: vi.fn(() => membersQuery),
       order: vi.fn(() => Promise.resolve({ data: members, error: null })),
     };
@@ -46,6 +50,12 @@ describe("recompute broadcasts committed intros", () => {
     await recompute("event-1");
     expect(notifyEvent).toHaveBeenCalledOnce();
     expect(notifyEvent).toHaveBeenCalledWith("event-1");
+  });
+
+  it("loads only matching columns and never fetches contact details", async () => {
+    await recompute("event-1", undefined, { aiEnabled: false });
+
+    expect(selectedMemberColumns).toBe("id,event_id,name,line,offers,seeks,topics,is_sample,created_at,ai_opt_out");
   });
 
   it("refreshes the snapshot and retries a dropped plan when the newcomer still has capacity", async () => {
