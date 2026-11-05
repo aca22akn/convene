@@ -1,12 +1,28 @@
 import { expect, test } from "@playwright/test";
 
-const paths = [
-  "/e/demo/stage?mock=1",
-  "/e/demo?mock=1",
-  "/e/demo/me?mock=1",
-  "/e/demo/organiser?mock=1",
-  "/c/demo?mock=1",
+type CspViolation = {
+  blockedURI: string;
+  violatedDirective: string;
+  effectiveDirective: string;
+  sourceFile: string;
+  lineNumber: number;
+};
+
+declare global {
+  interface Window {
+    __cspViolations: CspViolation[];
+  }
+}
+
+const mockPages = [
+  { path: "/e/demo/stage?mock=1", heading: "Scan to meet the right people here", waitForGraph: true },
+  { path: "/e/demo?mock=1", heading: "Who should you meet tonight?" },
+  { path: "/e/demo/me?mock=1", heading: "People to meet" },
+  { path: "/e/demo/organiser?mock=1", heading: "Demo night · organiser" },
+  { path: "/c/demo?mock=1", heading: "Demo community" },
 ];
+
+test.describe.configure({ retries: 0 });
 
 test("security headers are present on pages and API responses", async ({ request }) => {
   const cases = [
@@ -47,26 +63,48 @@ test("security headers are present on pages and API responses", async ({ request
   expect(csp).not.toContain("localhost:54321");
 });
 
-test("the CSP allows the mock pages to run without browser violations", async ({ page }) => {
-  const violations: string[] = [];
+test("the CSP allows the mock pages to run without browser violations", async ({ page, request }) => {
+  const consoleViolations: string[] = [];
   let currentPath = "";
+  await page.addInitScript(() => {
+    window.__cspViolations = [];
+    document.addEventListener("securitypolicyviolation", (event) => {
+      window.__cspViolations.push({
+        blockedURI: event.blockedURI,
+        violatedDirective: event.violatedDirective,
+        effectiveDirective: event.effectiveDirective,
+        sourceFile: event.sourceFile,
+        lineNumber: event.lineNumber,
+      });
+    });
+  });
   page.on("console", (message) => {
     if (/content security policy|violat(?:ion|ed)|refused to (?:load|execute)/i.test(message.text())) {
       const location = message.location();
-      violations.push(`${currentPath} (${location.url}:${location.lineNumber}:${location.columnNumber}) ${message.text()}`);
+      consoleViolations.push(`${currentPath} (${location.url}:${location.lineNumber}:${location.columnNumber}) ${message.text()}`);
     }
   });
 
-  for (const path of paths) {
+  for (const { path, heading, waitForGraph } of mockPages) {
+    const htmlResponse = await request.get(path);
+    expect(htmlResponse.ok(), path).toBeTruthy();
+    const html = await htmlResponse.text();
+    const styleTags = [...html.matchAll(/<([a-z][\w:-]*)\b[^>]*\sstyle=(?:"[^"]*"|'[^']*')[^>]*>/gi)].map((match) => ({
+      name: match[1].toLowerCase(),
+      tag: match[0],
+    }));
+    expect(styleTags, path).toHaveLength(2);
+    expect(styleTags.filter(({ name }) => name === "next-route-announcer"), path).toHaveLength(1);
+    expect(styleTags.filter(({ name, tag }) => name === "div" && /\bid="__next-route-announcer__"/.test(tag)), path).toHaveLength(1);
+
     currentPath = path;
-    await page.goto(path);
-    await expect(page.locator("body")).not.toBeEmpty();
-    const styleAttributes = await page.locator("[style]").evaluateAll((elements) => elements.map((element) => element.outerHTML));
-    expect(styleAttributes, path).toEqual([
-      '<next-route-announcer style="position: absolute;"></next-route-announcer>',
-      '<div aria-live="assertive" id="__next-route-announcer__" role="alert" style="position: absolute; border: 0px; height: 1px; margin: -1px; padding: 0px; width: 1px; clip: rect(0px, 0px, 0px, 0px); overflow: hidden; white-space: nowrap; overflow-wrap: normal;"></div>',
-    ]);
+    await page.goto(path, { waitUntil: "load" });
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    if (waitForGraph) await expect(page.locator(".force-graph-container canvas")).toBeVisible();
+
+    const cspViolations = await page.evaluate(() => window.__cspViolations);
+    expect(cspViolations, path).toEqual([]);
   }
 
-  expect(violations).toEqual([]);
+  expect(consoleViolations).toEqual([]);
 });
