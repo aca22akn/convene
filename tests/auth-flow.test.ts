@@ -81,9 +81,10 @@ vi.mock("@/lib/grok", () => ({
 }));
 
 vi.mock("@/lib/mcpTools", () => ({
-  searchMembers: async (_communityId: string, _query: string, scope: { eventIds?: string[] }) => { fakeDb.mcpScopes.push(scope); return []; },
-  findSpeakers: async (_communityId: string, _topic: string, scope: { eventIds?: string[] }) => { fakeDb.mcpScopes.push(scope); return []; },
-  communityGaps: async (_communityId: string, scope: { eventIds?: string[] }) => { fakeDb.mcpScopes.push(scope); return { members: 0, gaps: [] }; },
+  loadAskContext: async (_communityId: string, _query: string, scope: { eventIds?: string[]; aiEnabledOnly?: boolean; excludeAiOptOut?: boolean }) => {
+    fakeDb.mcpScopes.push(scope);
+    return { search_members: [], find_speakers: [], community_gaps: { members: 0, gaps: [] } };
+  },
 }));
 
 const eventToken = "event-admin-token";
@@ -339,8 +340,6 @@ describe("token scope and sessions", () => {
 
     expect(response.status).toBe(200);
     expect(fakeDb.mcpScopes).toEqual([
-      { eventIds: ["e1"], aiEnabledOnly: true, excludeAiOptOut: true },
-      { eventIds: ["e1"], aiEnabledOnly: true, excludeAiOptOut: true },
       { eventIds: ["e1"], aiEnabledOnly: true, excludeAiOptOut: true },
     ]);
   });

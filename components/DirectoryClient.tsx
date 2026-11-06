@@ -9,10 +9,32 @@ import { inputCls } from "./JoinForm";
 export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean }) {
   const { data, error } = useLive<DirectoryView>(`/api/c/${slug}`, { mock: mock ? mockDirectory : undefined, intervalMs: 10000 });
   const [filter, setFilter] = useState("");
+  const [pageStateBySlug, setPageStateBySlug] = useState<Record<string, { pages: DirectoryView[]; loading: boolean; error: string | null }>>({});
+  const pageState = pageStateBySlug[slug] ?? { pages: [], loading: false, error: null };
+  const { pages: extraPages, loading: loadingPage, error: pageError } = pageState;
+  const nextCursor = extraPages.at(-1)?.next_cursor ?? data?.next_cursor ?? null;
   const f = filter.trim().toLowerCase();
-  const people = (data?.people ?? [])
-    .filter((p) => !f || [p.name, p.latest_line, p.speak_on ?? "", p.x_handle ?? ""].some((s) => s.toLowerCase().includes(f)))
-    .sort((a, b) => b.events_count - a.events_count || a.name.localeCompare(b.name));
+  const people = [...(data?.people ?? []), ...extraPages.flatMap((page) => page.people)]
+    .filter((p) => !f || [p.name, p.latest_line, p.speak_on ?? "", p.x_handle ?? ""].some((s) => s.toLowerCase().includes(f)));
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingPage) return;
+    const updatePageState = (update: (state: typeof pageState) => typeof pageState) => {
+      setPageStateBySlug((current) => ({ ...current, [slug]: update(current[slug] ?? { pages: [], loading: false, error: null }) }));
+    };
+    updatePageState((state) => ({ ...state, loading: true, error: null }));
+    try {
+      const response = await fetch(`/api/c/${encodeURIComponent(slug)}?cursor=${encodeURIComponent(nextCursor)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Could not load more directory members.");
+      const page = await response.json() as DirectoryView;
+      updatePageState((state) => ({ ...state, pages: [...state.pages, page], loading: false }));
+    } catch (loadError) {
+      updatePageState((state) => ({ ...state, loading: false, error: loadError instanceof Error ? loadError.message : "Could not load more directory members." }));
+    }
+  };
 
   return (
     <main className="mx-auto w-full max-w-5xl p-5 lg:p-8">
@@ -44,6 +66,14 @@ export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean })
         ))}
         {data && people.length === 0 && <li className="p-4 text-white/50">No members found.</li>}
       </ul>
+      {nextCursor && (
+        <div className="mt-4">
+          <button className={inputCls} type="button" disabled={loadingPage} onClick={() => void loadMore()}>
+            {loadingPage ? "Loading…" : "Load more members"}
+          </button>
+          {pageError && <p className="mt-2 text-sm text-red-300" role="alert">{pageError}</p>}
+        </div>
+      )}
     </main>
   );
 }

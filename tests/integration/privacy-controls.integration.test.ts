@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadCommunityRows, suggestIntros } from "@/lib/mcpTools";
+import { searchMembers, suggestIntros } from "@/lib/mcpTools";
 import { createCommunity, createEvent, service } from "./helpers";
 
 describe("local Supabase privacy controls", () => {
@@ -28,8 +28,8 @@ describe("local Supabase privacy controls", () => {
 
     expect(eligible.ai_opt_out).toBe(false);
     expect(optedOut.ai_opt_out).toBe(true);
-    const rows = await loadCommunityRows(community.id, { aiEnabledOnly: true, excludeAiOptOut: true });
-    expect(rows.map((row) => row.id)).toEqual([eligible.id]);
+    const rows = await searchMembers(community.id, "analytics", { aiEnabledOnly: true, excludeAiOptOut: true });
+    expect(rows.map((row) => row.member_id)).toEqual([eligible.id]);
     const suggestions = await suggestIntros(community.id, eligible.id, {
       eventIds: [enabledEvent.id], aiEnabledOnly: true, excludeAiOptOut: true,
     });

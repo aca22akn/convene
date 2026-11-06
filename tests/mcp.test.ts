@@ -31,6 +31,16 @@ describe("community memory", () => {
     expect(rankSearch(people, "zzz")).toEqual([]);
   });
 
+  it("breaks equal ranking scores by person id for stable SQL parity", () => {
+    const tied = [
+      { ...people[0], person_id: "person-z", events_count: 2 },
+      { ...people[0], person_id: "person-a", events_count: 2 },
+    ];
+
+    expect(rankSearch(tied, "postgres").map((p) => p.person_id)).toEqual(["person-a", "person-z"]);
+    expect(rankSpeakersFor(tied, "postgres").map((p) => p.person_id)).toEqual(["person-a", "person-z"]);
+  });
+
   it("find_speakers only returns people who offered to speak", () => {
     const s = rankSpeakersFor(people, "postgres databases");
     expect(s.map((p) => p.name)).toEqual(["Tom"]);

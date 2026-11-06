@@ -110,6 +110,8 @@ The full data inventory is in [`docs/DATA.md`](docs/DATA.md). The [/privacy](/pr
 
 `/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. An event token sees that event only; a community token sees all events in that community. The organiser dashboard uses an HttpOnly 12-hour session cookie. The Ask box gives xAI a short-lived, read-only, scope-bound MCP token instead of the organiser token. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
 
+Directory, search, speaker, gap, and suggestion reads use bounded service-role SQL functions. The public directory filters `directory_consent` in SQL and pages 50 people at a time with a stable keyset cursor; MCP and Ask keep their event and AI-opt-out scope in the database query.
+
 ```json
 { "mcpServers": { "convene": { "url": "https://<your-app>/api/mcp", "headers": { "Authorization": "Bearer <token>" } } } }
 ```

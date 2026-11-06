@@ -3,7 +3,7 @@ import { admin } from "@/lib/db";
 import { eventFilterForAuth, originMatches, resolveRequestAuth, storeAccessToken, LLM_TOKEN_TTL_SECONDS } from "@/lib/auth";
 import { bad, json } from "@/lib/api";
 import { grok, GROK_MODEL } from "@/lib/grok";
-import { communityGaps, findSpeakers, searchMembers } from "@/lib/mcpTools";
+import { loadAskContext } from "@/lib/mcpTools";
 import { envLimit, limit } from "@/lib/ratelimit";
 import { aiCallAllowed } from "@/lib/ai-budget";
 import { bodyErrorResponse, readLimitedJson } from "@/lib/request-body";
@@ -70,12 +70,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
 
   // Fallback: call the same MCP tool functions directly, then let Grok (or a plain formatter) answer.
   const resultScope = aiEnabled ? { ...memberScope, aiEnabledOnly: true, excludeAiOptOut: true } : memberScope;
-  const [people, speakers, gaps] = await Promise.all([
-    searchMembers(c.id, question, resultScope),
-    findSpeakers(c.id, question, resultScope),
-    communityGaps(c.id, resultScope),
-  ]);
-  const context = { search_members: people.slice(0, 10), find_speakers: speakers.slice(0, 5), community_gaps: gaps };
+  const context = await loadAskContext(c.id, question, resultScope);
+  const people = context.search_members;
+  const speakers = context.find_speakers;
   if (client && await aiCallAllowed(scopeId)) {
     try {
       const res = await client.chat.completions.create({
