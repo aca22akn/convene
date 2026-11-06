@@ -1,19 +1,58 @@
-# Deployment runbook
+# Deployment hardening runbook
 
-## Before the first Vercel deploy
+Use this runbook for a new production deployment and, in full, before upgrading an existing installation. Do not copy secrets into tickets, shell history, or source control.
 
-1. Generate independent, high-entropy values for `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET`.
-2. In Vercel Project Settings → Environment Variables, set both variables for **Production** and **Preview** before triggering the first deployment. The production build fails when `PERSON_KEY_PEPPER` is missing; `PUBLIC_ID_SECRET` is required in production when opaque live IDs are generated.
-3. Back up `PERSON_KEY_PEPPER` in the approved secret manager or another secure backup. Keep it unchanged across deployments and maintenance commands. Losing it makes existing person keys unrecoverable; changing it requires rehashing the stored person keys.
-4. Keep `PUBLIC_ID_SECRET` stable across deployments so opaque live member IDs do not change. It is separate from `SUPABASE_SERVICE_ROLE_KEY` and must not be derived from it.
-5. Configure the remaining values from `.env.example` in the environments that need them. Set `NEXT_PUBLIC_BASE_URL` to the deployment's public URL.
+## New environment variables
 
-## Abuse and cost controls
+Configure these new variables in this order:
 
-Set `MAX_MEMBERS_PER_EVENT` to the room cap (default 200), the `JOIN_*`, `EVENT_CREATE_*`, `EVENT_DELETE_LIMIT`, `IMPORT_LIMIT`, `ASK_*`, and `AUTH_EXCHANGE_LIMIT` values to tune their Postgres-backed fixed-window limits, and `AI_DAILY_CALL_LIMIT` / `AI_EVENT_DAILY_CALL_LIMIT` to tune xAI call budgets (defaults 3,000 per UTC day globally and 400 per event). Keep the defaults unless you have a measured reason to change them. Calls fall back to keyword extraction and tag-only matching when the AI budget is exhausted. Do not remove the database rate-limit migration; the app fails closed if its RPC is unavailable.
+1. `PERSON_KEY_PEPPER` — a persistent, high-entropy secret used to hash person keys.
+2. `PUBLIC_ID_SECRET` — a separate persistent, high-entropy secret for opaque public IDs.
+3. `CRON_SECRET` — a high-entropy bearer secret for the scheduled retention endpoint.
+4. `MAX_MEMBERS_PER_EVENT` — room capacity; the default is `200`.
+5. `AI_DAILY_CALL_LIMIT` — global UTC-day xAI call budget; the default is `3000`.
+6. `RETENTION_DAYS` — event-data retention period; the default is `365`.
 
-Set `RETENTION_DAYS` (365 by default) and a high-entropy `CRON_SECRET` in Vercel. `vercel.json` schedules `/api/cron/retention` daily at 03:00 UTC. Confirm the cron is listed in Vercel after deployment. The endpoint removes expired event data and orphan people, expired sessions/LLM tokens, and rate-limit windows older than two days.
+The production build throws without `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET`. Set both values for **Production** and **Preview**, and back them up in the approved secret manager before deploying. Back up `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` separately and keep each stable: losing the pepper makes existing person keys unrecoverable, while changing either value breaks its respective stable identifiers. Set `CRON_SECRET`, `MAX_MEMBERS_PER_EVENT`, `AI_DAILY_CALL_LIMIT`, and `RETENTION_DAYS` for the environments that run the app. Also configure the Supabase variables and `NEXT_PUBLIC_BASE_URL` from `.env.example`.
 
-## Existing installations
+## Existing-installation rollout
 
-Before deploying a version that hashes person keys, use the same backed-up `PERSON_KEY_PEPPER` for the maintenance command and every app instance. Apply the standard timestamped migrations with `npx supabase db push`. Pause joins and imports, wait for old app instances to drain, and keep writes paused through the rehash and deployment. Run `npm run rehash:people:dry-run`, review the counts, then run `npm run rehash:people`. Deploy with the same pepper, verify organiser links and returning-member identity, and resume writes. Apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` only after verifying the hash-based app and legacy organiser-link exchange flow.
+1. **Back up and export the production project.** Take a recoverable Supabase database export, record the currently deployed Vercel configuration, and confirm the secret-manager backups before making any schema or application change. Preserve the exact `PERSON_KEY_PEPPER` for the rehash command and every new app instance.
+2. **Prove migrations outside production first.** Apply the timestamped migrations with `npx supabase db push` to a throwaway Supabase project, configure its required secrets, and smoke-test creating an event, joining, organiser exchange, matching, and retention. Investigate any migration or policy failure there before touching the production project.
+3. **Migrate and rehash production while writes are paused.** Pause joins and imports, wait for old application instances to drain, and apply the same timestamped migrations to production with `npx supabase db push`. Keep writes paused. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people` for real. Complete both commands with the backed-up pepper **before deploying code that expects hashed keys**.
+
+## Deploy the application
+
+Deploy the new application with the same backed-up secrets. Verify that an organiser can create an event, an attendee can join, a returning attendee retains identity, and matching works before reopening writes.
+
+Apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` manually only after verifying legacy organiser links through the fragment-to-session exchange flow on the deployed hash-based application. Do not remove the legacy plaintext token columns before that check succeeds.
+
+## Verify public data boundaries
+
+Confirm that anon REST access to `members` is denied on the real project (substitute the real public URL and anon key; do not put the key in a ticket):
+
+```sh
+curl -i "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/members?select=id" \
+  -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
+  -H "Authorization: Bearer ${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+```
+
+Expect a denial response (401 or 403), not member data. If it returns rows or another successful response, stop and repair the real project's grants and RLS before reopening joins.
+
+## Confirm the retention cron
+
+Confirm the retention cron is scheduled in the Vercel dashboard after deployment. `vercel.json` must show `/api/cron/retention` at `0 3 * * *`, and the production endpoint must have the configured `CRON_SECRET`. The job removes expired event data and orphan people, expired sessions and LLM tokens, and rate-limit windows older than two days.
+
+## Rollback notes
+
+Keep the previous deployment available until the smoke checks and access-boundary check pass. If deployment verification fails before the manual contract migration, roll back the Vercel deployment, keep writes paused, and restore the database only from the pre-change export after assessing the changed rows. Do not roll back to an application that writes raw person keys after the rehash; instead, fix forward with the same pepper or restore the matching pre-rehash backup under a deliberate incident plan. The manual contract migration is irreversible without a backup, which is why it comes last.
+
+## Re-run the eval with a real XAI_API_KEY
+
+Set `XAI_API_KEY` in `.env.local` through the approved secret workflow, then run:
+
+```sh
+npm run eval
+```
+
+The command in `package.json` runs `scripts/eval.ts` and updates the README evaluation table between its `EVAL` markers. Because Phase 4 changed the rerank prompt format, run this with a real key and update the README eval table with the newly measured results; review and commit that documentation change separately.
