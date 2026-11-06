@@ -1,11 +1,11 @@
-import { grok, GROK_MODEL } from "./grok";
+import { aiClient, aiModel, aiProviderName } from "./grok";
 import { aiCallAllowed } from "./ai-budget";
 import { keywordExtract } from "./keywords";
 import { TAGS, type Extraction, type Tag } from "./types";
 
 const tagArray = { type: "array", items: { type: "string", enum: [...TAGS] } };
 
-const SCHEMA = {
+export const EXTRACTION_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["offers", "seeks", "topics", "speak_topics"],
@@ -28,19 +28,19 @@ export async function extract(
   line: string,
   speak_on?: string | null,
   options: { eventId?: string; signal?: AbortSignal; enabled?: boolean } = {},
-): Promise<Extraction & { source: "grok" | "keywords"; ms: number }> {
+): Promise<Extraction & { source: "ai" | "keywords"; ms: number }> {
   const t0 = Date.now();
-  const client = options.enabled === false ? null : grok();
+  const client = options.enabled === false ? null : aiClient();
   const budgetAllowed = client && options.eventId ? await aiCallAllowed(options.eventId) : !!client && !options.eventId;
   if (client && budgetAllowed) {
     try {
       const res = await client.chat.completions.create({
-        model: GROK_MODEL,
+        model: aiModel(),
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: JSON.stringify({ attendee_data: { line, speak_on: speak_on || "" } }) },
         ],
-        response_format: { type: "json_schema", json_schema: { name: "extraction", strict: true, schema: SCHEMA } },
+        response_format: { type: "json_schema", json_schema: { name: "extraction", strict: true, schema: EXTRACTION_SCHEMA } },
       }, options.signal ? { signal: options.signal } : undefined);
       const raw = JSON.parse(res.choices[0]?.message?.content || "{}");
       const out: Extraction = {
@@ -50,10 +50,10 @@ export async function extract(
         speak_topics: valid(raw.speak_topics),
       };
       if (out.offers.length + out.seeks.length + out.topics.length > 0) {
-        return { ...out, source: "grok", ms: Date.now() - t0 };
+        return { ...out, source: "ai", ms: Date.now() - t0 };
       }
     } catch (e) {
-      console.warn("[extract] grok failed, using keywords:", (e as Error).message);
+      console.warn(`[extract] ${aiProviderName()} failed, using keywords:`, (e as Error).message);
     }
   }
   return { ...keywordExtract(line, speak_on), source: "keywords", ms: Date.now() - t0 };

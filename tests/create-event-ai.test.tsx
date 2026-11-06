@@ -12,8 +12,8 @@ describe("CreateEvent AI setting", () => {
   it("defaults the event AI setting from server availability and sends the organiser choice", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ slug: "new-event" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
-    render(<CreateEvent aiAvailable />);
-    const aiToggle = screen.getByRole("checkbox", { name: /use xai for matching and ask/i });
+    render(<CreateEvent aiAvailable aiProviderName="OpenAI" />);
+    const aiToggle = screen.getByRole("checkbox", { name: /use openai for matching and ask/i });
     expect((aiToggle as HTMLInputElement).checked).toBe(true);
     fireEvent.change(screen.getByPlaceholderText(/event name/i), { target: { value: "Demo night" } });
     fireEvent.click(screen.getByRole("button", { name: /create event/i }));
@@ -21,11 +21,11 @@ describe("CreateEvent AI setting", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ name: "Demo night", ai_enabled: true });
   });
 
-  it("keeps AI disabled and locked when no xAI key is available", () => {
-    render(<CreateEvent aiAvailable={false} />);
-    const aiToggle = screen.getByRole("checkbox", { name: /use xai for matching and ask/i });
+  it("keeps AI disabled and locked when no provider key is available", () => {
+    render(<CreateEvent aiAvailable={false} aiProviderName="OpenAI" />);
+    const aiToggle = screen.getByRole("checkbox", { name: /use openai for matching and ask/i });
     expect((aiToggle as HTMLInputElement).checked).toBe(false);
     expect((aiToggle as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText(/unavailable until XAI_API_KEY is configured/i)).toBeTruthy();
+    expect(screen.getByText(/unavailable until AI_API_KEY or XAI_API_KEY is configured/i)).toBeTruthy();
   });
 });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/Brand";
 import { CreateEvent } from "@/components/CreateEvent";
+import { aiAvailable, aiProviderName } from "@/lib/grok";
 
 const STEPS = [
   ["Scan", "The organiser puts a QR on the screen. People scan it on arrival."],
@@ -35,7 +36,7 @@ export default function Home() {
         ))}
       </ol>
 
-      <CreateEvent aiAvailable={Boolean(process.env.XAI_API_KEY)} />
+      <CreateEvent aiAvailable={aiAvailable()} aiProviderName={aiProviderName()} />
     </main>
   );
 }

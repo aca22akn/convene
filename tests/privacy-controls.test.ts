@@ -1,12 +1,19 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { privacyNotice, renderPrivacyReadmeSection } from "@/lib/privacy";
+import { privacyNotice, renderDataProviderSection, renderPrivacyReadmeSection } from "@/lib/privacy";
 
 describe("shared privacy notice", () => {
   it("mentions xAI only for events with AI enabled", () => {
     expect(privacyNotice(true).join(" ")).toContain("xAI");
     expect(privacyNotice(false).join(" ")).not.toContain("xAI");
+  });
+
+  it("uses a non-default configured provider in notices and generated documentation", () => {
+    const provider = "OpenAI";
+    expect(privacyNotice(true, 365, provider).join(" ")).toContain(provider);
+    expect(renderPrivacyReadmeSection(365, provider)).toContain(provider);
+    expect(renderDataProviderSection(provider)).toContain(`Sent to ${provider}`);
   });
 
   it("covers collected data, visibility, consent, deletion, and retention for both states", () => {
@@ -53,6 +60,10 @@ describe("shared privacy notice", () => {
     const end = "<!-- PRIVACY:END -->";
     const section = readme.split(start)[1]?.split(end)[0]?.trim();
     expect(section).toBe(renderPrivacyReadmeSection());
+    const dataStart = "<!-- AI-PROVIDER:START -->";
+    const dataEnd = "<!-- AI-PROVIDER:END -->";
+    const dataDocs = readFileSync("docs/DATA.md", "utf8");
+    expect(dataDocs.split(dataStart)[1]?.split(dataEnd)[0]?.trim()).toBe(renderDataProviderSection());
     const oldClaim = ["Nothing", "is sent to anyone"].join(" ");
     const root = process.cwd();
     const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

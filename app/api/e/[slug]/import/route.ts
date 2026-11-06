@@ -42,6 +42,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     skipped_full: result.skipped_full,
     line_column: lineColumn,
     speak_column: speakColumn,
-    ai_used: result.extraction.includes("grok"),
+    ai_used: result.extraction.includes("ai"),
   });
 }

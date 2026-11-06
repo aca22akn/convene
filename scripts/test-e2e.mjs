@@ -21,6 +21,7 @@ const env = createIsolatedTestEnv(process.env, tempRoot, {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "playwright-placeholder-anon-key",
   SUPABASE_SERVICE_ROLE_KEY: "playwright-placeholder-service-role-key",
   PUBLIC_ID_SECRET: "playwright-placeholder-public-id-secret",
+  AI_API_KEY: "",
   XAI_API_KEY: "",
   PERSON_KEY_PEPPER: "playwright-placeholder-person-key-pepper",
   CRON_SECRET: "playwright-placeholder-cron-secret",

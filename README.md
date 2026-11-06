@@ -41,7 +41,7 @@ Today almost every London community runs on **Luma for events and WhatsApp for t
 
 1. **Fork / clone** this repo and `npm install`.
 2. **Supabase:** create a project, link it with `npx supabase link --project-ref <ref>`, then apply every standard timestamped migration with `npx supabase db push`. For SQL-editor setup, apply all `*.sql` migrations in timestamp order; the initial migration alone is not a complete schema.
-3. **Env:** `cp .env.example .env.local` and set the Supabase URL, anon key, service-role key, a stable, random `PERSON_KEY_PEPPER`, and a separate random `PUBLIC_ID_SECRET`. Before the first Vercel deploy, set `PERSON_KEY_PEPPER` for both Production and Preview; the app throws during build without it. Keep the pepper unchanged and backed up securely: losing it makes person keys unrecoverable. Keep `PUBLIC_ID_SECRET` stable so live graph IDs remain stable. `XAI_API_KEY` is optional — without it Convene uses keyword extraction and tag-only matching.
+3. **Env:** `cp .env.example .env.local` and set the Supabase URL, anon key, service-role key, a stable, random `PERSON_KEY_PEPPER`, and a separate random `PUBLIC_ID_SECRET`. Before the first Vercel deploy, set `PERSON_KEY_PEPPER` for both Production and Preview; the app throws during build without it. Keep the pepper unchanged and backed up securely: losing it makes person keys unrecoverable. Keep `PUBLIC_ID_SECRET` stable so live graph IDs remain stable. `AI_API_KEY` is optional (the legacy `XAI_API_KEY` fallback is supported) — without either, Convene uses keyword extraction and tag-only matching.
 4. **Try it locally:** `npm run seed` (loads 40 fictional sample members into event `demo`), `npm run dev`, open http://localhost:3000/e/demo/stage.
 5. **Deploy:** Before the first Vercel deploy, set `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` for both **Production** and **Preview** in Project Settings → Environment Variables. The production build throws if `PERSON_KEY_PEPPER` is missing, and `PUBLIC_ID_SECRET` is required in production to generate opaque live IDs. Back up `PERSON_KEY_PEPPER` securely; losing it makes existing person keys unrecoverable. Set `CRON_SECRET` and `RETENTION_DAYS` (365 by default) so the daily retention cron can run. Then run `vercel` (or import the repo in Vercel), add the other env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, and deploy with `vercel --prod`.
 
@@ -56,11 +56,11 @@ Create an event from the home page; save the organiser link it shows. The event 
 ```mermaid
 flowchart LR
   P[Phone /e/slug] -- name + one line --> J[POST /api/e/slug/join]
-  J --> X[Extract: Grok structured output<br/>→ 40 fixed tags<br/>fallback: keywords]
+  J --> X[Extract: configured AI structured output<br/>→ 40 fixed tags<br/>fallback: keywords]
   X --> DB[(Supabase<br/>communities · events · people<br/>members · intros)]
   J -. after response .-> R[Recompute]
   R --> C1[Stage 1: tag score<br/>top 8 candidates]
-  C1 --> C2[Stage 2: one Grok rerank call<br/>0-10 + quoted reasons]
+  C1 --> C2[Stage 2: one configured-AI rerank call<br/>0-10 + quoted reasons]
   C2 --> G[Grounding check:<br/>quote ⊂ a line?]
   G --> B[Edmonds blossom ×2 rounds<br/>≤ 2 intros each]
   B --> C[convene_commit_intros RPC<br/>advisory lock + capacity recheck]
@@ -75,14 +75,14 @@ flowchart LR
   E --> S[Hashed 12h server-side session<br/>HttpOnly __Host-convene_session]
   S --> O
   DB --> MCP[/api/mcp read-only tools/]
-  MCP --> A[Ask your community<br/>Grok Responses API + MCP]
+  MCP --> A[Ask your community<br/>configured AI Responses API + MCP]
 ```
 
 ## How matching works
 
-1. **Extraction.** Each line is mapped by Grok (structured output, enum-constrained) to a fixed vocabulary of 40 tags — `offers`, `seeks`, `topics`, `speak_topics`. 15s timeout, one retry, then a keyword fallback so the app works with no API key.
+1. **Extraction.** Each line is mapped by the configured AI provider (structured output, enum-constrained) to a fixed vocabulary of 40 tags — `offers`, `seeks`, `topics`, `speak_topics`. 15s timeout, one retry, then a keyword fallback so the app works with no API key.
 2. **Stage 1 — candidates.** `score(i,j) = 2·|offers_i ∩ seeks_j| + 2·|offers_j ∩ seeks_i| + 0.5·|topics_i ∩ topics_j|`; top 8 candidates per member.
-3. **Stage 2 — rerank.** One Grok call per new member scores each candidate 0–10 and gives two reasons, each with a `quote`.
+3. **Stage 2 — rerank.** One configured-provider call per new member scores each candidate 0–10 and gives two reasons, each with a `quote`.
 4. **Grounding.** A reason is kept only if its quote is an exact substring of one of the two members' lines (checked in code, [`lib/ground.ts`](lib/ground.ts)). A pair with zero grounded reasons gets rerank 0. Pairs without grounded reasons get a template reason built from shared tags.
 5. **Weight** = `0.4 · normalised tag score + 0.6 · rerank/10` (tag score only with no API key).
 6. **Assignment and commit.** The pure planner computes a deterministic proposal for its input snapshot. `convene_commit_intros` then serializes concurrent plans with an advisory lock and rechecks duplicate-pair and two-intro capacity rules before committing. The integration suite exercises overlapping plans and sequential commits; recompute retries a dropped stale plan but never deletes or rewrites committed introductions. A greedy planner remains only for evaluation.
@@ -104,7 +104,7 @@ The full data inventory is in [`docs/DATA.md`](docs/DATA.md). The [/privacy](/pr
 
 ## MCP
 
-`/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. An event token sees that event only; a community token sees all events in that community. The organiser dashboard uses an HttpOnly 12-hour session cookie. The Ask box gives xAI a short-lived, read-only, scope-bound MCP token instead of the organiser token. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
+`/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. An event token sees that event only; a community token sees all events in that community. The organiser dashboard uses an HttpOnly 12-hour session cookie. The Ask box gives the configured AI provider a short-lived, read-only, scope-bound MCP token instead of the organiser token. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
 
 Directory, search, speaker, gap, and suggestion reads use bounded service-role SQL functions. The public directory filters `directory_consent` in SQL and pages 50 people at a time with a stable keyset cursor; MCP and Ask keep their event and AI-opt-out scope in the database query.
 
@@ -112,7 +112,7 @@ Directory, search, speaker, gap, and suggestion reads use bounded service-role S
 { "mcpServers": { "convene": { "url": "https://<your-app>/api/mcp", "headers": { "Authorization": "Bearer <token>" } } } }
 ```
 
-The organiser page's **Ask your community** box calls the Grok Responses API with this server attached as an MCP tool.
+The organiser page's **Ask your community** box calls the configured provider's Responses API with this server attached as an MCP tool, then falls back to supplied context through chat completions if remote MCP is unsupported or fails.
 
 ### Upgrading an existing installation
 
@@ -133,10 +133,10 @@ Before deploying this version, configure the same persistent `PERSON_KEY_PEPPER`
 - Data: 40 fictional sample members, 23 `should_meet` and 6 `should_not_meet` human-reviewed pairs. Each person gets at most 2 intros.
 - Precision@2 = should_meet / (should_meet + should_not_meet) among produced intros that were labelled; recall = labelled should_meet pairs produced / all should_meet pairs.
 - Extraction: 40/40 by Grok (p50 964 ms). Join-to-intro latency (extraction + one rerank call + assignment): p50 4171 ms, p95 4633 ms. Grounded reasons (blossom, reranked): 88% — the rest fall back to tag templates.
-- Extraction model: grok-4.20-0309-non-reasoning; rerank model: grok-4.20-0309-non-reasoning. Run on 2026-10-22 19:39 UTC with `npm run eval`.
+- Provider: xAI; extraction model: grok-4.20-0309-non-reasoning; rerank model: grok-4.20-0309-non-reasoning. Run on 2026-10-22 19:39 UTC with `npm run eval`.
 <!-- EVAL:END -->
 
-Note: the keyword fallback was written while looking at this same sample data, so its scores are optimistic. Grok rows vary between runs.
+Note: the keyword fallback was written while looking at this same sample data, so its scores are optimistic. Provider rows vary between runs.
 
 ## Limits
 
@@ -150,7 +150,7 @@ Note: the keyword fallback was written while looking at this same sample data, s
   | 200 | 5.17 | 2,200 | CI-only |
   | 500 | 23.36 | 13,958 | CI-only |
 
-- **Default request and AI budgets.** 8 joins per 10 minutes per IP; 400 joins per hour per event; 5 event creations per hour per IP and 200 per day globally; 6 imports per hour per event; 5 Ask/MCP calls per minute and 20 per hour per scope; and 10 token exchanges per 10 minutes per IP. Missing client IPs use a two-request bucket. xAI calls are limited to 3,000 per UTC day globally and 400 per event per UTC day. The values are environment-tunable; their defaults are listed in `.env.example`.
+- **Default request and AI budgets.** 8 joins per 10 minutes per IP; 400 joins per hour per event; 5 event creations per hour per IP and 200 per day globally; 6 imports per hour per event; 5 Ask/MCP calls per minute and 20 per hour per scope; and 10 token exchanges per 10 minutes per IP. Missing client IPs use a two-request bucket. AI calls are limited to 3,000 per UTC day globally and 400 per event per UTC day. The values are environment-tunable; their defaults are listed in `.env.example`.
 
 ## Development and CI
 

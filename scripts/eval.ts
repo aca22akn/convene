@@ -5,7 +5,8 @@ import { extract, pool } from "../lib/extract";
 import { keywordExtract } from "../lib/keywords";
 import { assignBlossom, assignGreedy, candidates, pairKey, tagScore, templateReasons } from "../lib/match";
 import { planIntros, rerankCandidates } from "../lib/recompute";
-import { RERANK_MODEL, rerank, rerankWeight, type RerankResult } from "../lib/rerank";
+import { rerank, rerankWeight, type RerankResult } from "../lib/rerank";
+import { aiAvailable, aiModel, aiProviderName, aiRerankModel } from "../lib/grok";
 import { JoinInput, TAGS, type Edge, type Member } from "../lib/types";
 import { isGrounded } from "../lib/ground";
 
@@ -18,7 +19,8 @@ const pairs: Pair[] = JSON.parse(readFileSync("data/labelled_pairs.json", "utf8"
 const id = (sid: number) => `m${String(sid).padStart(3, "0")}`;
 const good = new Set(pairs.filter((p) => p.label === "should_meet").map((p) => pairKey(id(p.a), id(p.b))));
 const bad = new Set(pairs.filter((p) => p.label !== "should_meet").map((p) => pairKey(id(p.a), id(p.b))));
-const hasKey = !!process.env.XAI_API_KEY;
+const providerName = aiProviderName();
+const hasKey = aiAvailable();
 
 const base = (s: Sample, i: number): Omit<Member, "offers" | "seeks" | "topics" | "speak_topics"> => ({
   id: id(s.sample_id), event_id: "eval", name: s.name, line: s.line, speak_on: s.speak_on ?? null,
@@ -44,7 +46,7 @@ const quantile = (xs: number[], q: number) => {
 };
 
 async function main() {
-  console.log(`Eval on ${samples.length} sample members, ${good.size} should_meet / ${bad.size} should_not_meet pairs. Grok: ${hasKey ? "on" : "off"}`);
+  console.log(`Eval on ${samples.length} sample members, ${good.size} should_meet / ${bad.size} should_not_meet pairs. ${providerName}: ${hasKey ? "on" : "off"}`);
 
   // Extraction (Grok if a key is set, else keyword fallback); keyword-only also kept as the no-key baseline.
   const extractionResults = await pool(samples, 6, (s) => extract(s.line, s.speak_on));
@@ -55,7 +57,7 @@ async function main() {
   const members: Member[] = samples.map((s, i) => ({ ...base(s, i), ...ext[i] }));
   const kwMembers: Member[] = samples.map((s, i) => ({ ...base(s, i), ...keywordExtract(s.line, s.speak_on) }));
   const extractMs = ext.map((e) => e.ms);
-  const grokExtracted = ext.filter((e) => e.source === "grok").length;
+  const providerExtracted = ext.filter((e) => e.source === "ai").length;
 
   const rows: string[][] = [];
   const add = (assign: string, scoring: string, r: ReturnType<typeof score> | null, grounded = "—") =>
@@ -66,7 +68,7 @@ async function main() {
   add("blossom", "tags (keyword extraction, no API key)", score(assignBlossom(kwEdges)));
 
   const tagEdges = candidates(members);
-  const extLabel = grokExtracted ? "tags (Grok extraction)" : "tags (keyword extraction)";
+  const extLabel = providerExtracted ? `tags (${providerName} extraction)` : "tags (keyword extraction)";
   if (hasKey) {
     add("greedy", extLabel, score(assignGreedy(tagEdges)));
     add("blossom", extLabel, score(assignBlossom(tagEdges)));
@@ -119,11 +121,11 @@ async function main() {
       const rs = xs.flatMap(reasonsOf);
       return pct(rs.filter((r) => r.grounded).length / Math.max(1, rs.length));
     };
-    add("greedy", "reranked (tags + Grok)", score(g), gr(g));
-    add("blossom", "reranked (tags + Grok)", score(bl), gr(bl));
+    add("greedy", `reranked (tags + ${providerName})`, score(g), gr(g));
+    add("blossom", `reranked (tags + ${providerName})`, score(bl), gr(bl));
   } else {
-    add("greedy", "reranked (tags + Grok)", null, "n/a");
-    add("blossom", "reranked (tags + Grok)", null, "n/a");
+    add("greedy", `reranked (tags + ${providerName})`, null, "n/a");
+    add("blossom", `reranked (tags + ${providerName})`, null, "n/a");
   }
 
   const header = ["Assignment", "Scoring", "Precision@2", "Recall", "should_not_meet produced", "Intros", "Grounded reasons"];
@@ -139,9 +141,9 @@ async function main() {
     `Data: ${samples.length} fictional sample members, ${good.size} \`should_meet\` and ${bad.size} \`should_not_meet\` human-reviewed pairs. Each person gets at most 2 intros.`,
     `Precision@2 = should_meet / (should_meet + should_not_meet) among produced intros that were labelled; recall = labelled should_meet pairs produced / all should_meet pairs.`,
     hasKey
-      ? `Extraction: ${grokExtracted}/${samples.length} by Grok (p50 ${Math.round(extP50)} ms). Join-to-intro latency (extraction + one rerank call + assignment): p50 ${Math.round(p50)} ms, p95 ${Math.round(p95)} ms. Grounded reasons (blossom, reranked): ${pct(groundedReasons / Math.max(1, totalReasons))} — the rest fall back to tag templates.`
-      : `No XAI_API_KEY: reranked rows and latency are n/a.`,
-    `Extraction model: ${process.env.XAI_MODEL || "grok-4.7"}; rerank model: ${RERANK_MODEL}. Run on ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC with \`npm run eval\`.`,
+      ? `Extraction: ${providerExtracted}/${samples.length} by ${providerName} (p50 ${Math.round(extP50)} ms). Join-to-intro latency (extraction + one rerank call + assignment): p50 ${Math.round(p50)} ms, p95 ${Math.round(p95)} ms. Grounded reasons (blossom, reranked): ${pct(groundedReasons / Math.max(1, totalReasons))} — the rest fall back to tag templates.`
+      : `No ${providerName} API key: reranked rows and latency are n/a.`,
+    `Provider: ${providerName}; extraction model: ${aiModel()}; rerank model: ${aiRerankModel()}. Run on ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC with \`npm run eval\`.`,
   ];
   const block = `${table}\n\n${notes.map((n) => `- ${n}`).join("\n")}`;
   console.log("\n" + block + "\n");
@@ -157,7 +159,7 @@ async function main() {
 }
 
 async function adversarialMain() {
-  if (!hasKey) throw new Error("Adversarial live eval requires XAI_API_KEY; no model calls were made.");
+  if (!hasKey) throw new Error(`Adversarial live eval requires AI_API_KEY or XAI_API_KEY for ${providerName}; no model calls were made.`);
   const fixture: { members: AdversarialSample[] } = JSON.parse(readFileSync("data/adversarial_members.json", "utf8"));
   const valid = fixture.members.filter((sample) => JoinInput.safeParse({ name: sample.name, line: sample.line, speak_on: sample.speak_on }).success);
   const overlong = fixture.members.length - valid.length;

@@ -42,7 +42,7 @@ describe("hardening deployment runbook", () => {
   });
 
   it("makes the real-key evaluation command and README update explicit", () => {
-    expect(runbook).toContain("## Re-run the eval with a real XAI_API_KEY");
+    expect(runbook).toContain("## Re-run the eval with a real AI_API_KEY");
     expect(runbook).toContain("npm run eval");
     expect(runbook).toMatch(/Phase 4[^.]*rerank prompt format/i);
     expect(runbook).toMatch(/update the README eval table/i);

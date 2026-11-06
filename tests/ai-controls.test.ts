@@ -6,7 +6,7 @@ const { aiCallAllowed, create, grok } = vi.hoisted(() => ({
   grok: vi.fn(() => ({ chat: { completions: { create } } })),
 }));
 vi.mock("@/lib/ai-budget", () => ({ aiCallAllowed }));
-vi.mock("@/lib/grok", () => ({ grok, GROK_MODEL: "test-model" }));
+vi.mock("@/lib/grok", () => ({ aiClient: grok, aiModel: () => "test-model", aiRerankModel: () => "test-rerank-model" }));
 
 import { extract } from "@/lib/extract";
 import { rerank } from "@/lib/rerank";
@@ -35,7 +35,7 @@ describe("per-event and per-attendee AI controls", () => {
     expect(JoinInput.safeParse({ ...base, surprise: true }).success).toBe(false);
   });
 
-  it("does not create an xAI client call when the event or attendee disables AI", async () => {
+  it("does not create a provider client call when the event or attendee disables AI", async () => {
     const result = await extract("Building a design tool", null, { eventId: "event-1", enabled: false });
     expect(grok).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();

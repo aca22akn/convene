@@ -111,7 +111,7 @@ export type MeView = {
 };
 
 // ---- Function contracts (implemented by lanes) ----
-// lib/extract.ts   export async function extract(line: string, speak_on?: string | null): Promise<Extraction & { source: "grok" | "keywords"; ms: number }>
+// lib/extract.ts   export async function extract(line: string, speak_on?: string | null): Promise<Extraction & { source: "ai" | "keywords"; ms: number }>
 // lib/keywords.ts  export function keywordExtract(line: string, speak_on?: string | null): Extraction
 // lib/match.ts     export function tagScore(i: Member, j: Member): number
 //                  export function candidates(members: Member[], k?: number): Edge[]          // top-k per member, deduped

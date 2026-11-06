@@ -82,6 +82,7 @@ function main() {
       NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
       SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
       PUBLIC_ID_SECRET: "integration-placeholder-public-id-secret",
+      AI_API_KEY: "",
       XAI_API_KEY: "",
       PERSON_KEY_PEPPER: "integration-placeholder-person-key-pepper",
       CRON_SECRET: "integration-placeholder-cron-secret",

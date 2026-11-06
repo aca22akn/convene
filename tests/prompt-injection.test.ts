@@ -5,7 +5,7 @@ const { aiCallAllowed, create, grok } = vi.hoisted(() => ({
   aiCallAllowed: vi.fn(async () => true), create: vi.fn(), grok: vi.fn(() => ({ chat: { completions: { create } } })),
 }));
 vi.mock("@/lib/ai-budget", () => ({ aiCallAllowed }));
-vi.mock("@/lib/grok", () => ({ grok, GROK_MODEL: "test-model" }));
+vi.mock("@/lib/grok", () => ({ aiClient: grok, aiModel: () => "test-model", aiRerankModel: () => "test-rerank-model" }));
 
 import { extract } from "@/lib/extract";
 import { rerank } from "@/lib/rerank";

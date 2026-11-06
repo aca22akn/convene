@@ -37,13 +37,17 @@ describe("keywordExtract", () => {
 });
 
 describe("extract", () => {
+  const savedAi = process.env.AI_API_KEY;
   const saved = process.env.XAI_API_KEY;
   afterEach(() => {
+    if (savedAi === undefined) delete process.env.AI_API_KEY;
+    else process.env.AI_API_KEY = savedAi;
     if (saved === undefined) delete process.env.XAI_API_KEY;
     else process.env.XAI_API_KEY = saved;
   });
 
   it("falls back to keywords with no API key", async () => {
+    delete process.env.AI_API_KEY;
     delete process.env.XAI_API_KEY;
     const e = await extract("Building a podcast on London startup stories, need founders with honest failure stories");
     expect(e.source).toBe("keywords");

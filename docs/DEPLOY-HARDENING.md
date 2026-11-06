@@ -10,7 +10,7 @@ Configure these new variables in this order:
 2. `PUBLIC_ID_SECRET` — a separate persistent, high-entropy secret for opaque public IDs.
 3. `CRON_SECRET` — a high-entropy bearer secret for the scheduled retention endpoint.
 4. `MAX_MEMBERS_PER_EVENT` — room capacity; the default is `200`.
-5. `AI_DAILY_CALL_LIMIT` — global UTC-day xAI call budget; the default is `3000`.
+5. `AI_DAILY_CALL_LIMIT` — global UTC-day AI call budget; the default is `3000`.
 6. `RETENTION_DAYS` — event-data retention period; the default is `365`.
 
 The production build throws without `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET`. Set both values for **Production** and **Preview**, and back them up in the approved secret manager before deploying. Back up `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` separately and keep each stable: losing the pepper makes existing person keys unrecoverable, while changing either value breaks its respective stable identifiers. Set `CRON_SECRET`, `MAX_MEMBERS_PER_EVENT`, `AI_DAILY_CALL_LIMIT`, and `RETENTION_DAYS` for the environments that run the app. Also configure the Supabase variables and `NEXT_PUBLIC_BASE_URL` from `.env.example`.
@@ -47,9 +47,9 @@ Confirm the retention cron is scheduled in the Vercel dashboard after deployment
 
 Keep the previous deployment available until the smoke checks and access-boundary check pass. If deployment verification fails before the manual contract migration, roll back the Vercel deployment, keep writes paused, and restore the database only from the pre-change export after assessing the changed rows. Do not roll back to an application that writes raw person keys after the rehash; instead, fix forward with the same pepper or restore the matching pre-rehash backup under a deliberate incident plan. The manual contract migration is irreversible without a backup, which is why it comes last.
 
-## Re-run the eval with a real XAI_API_KEY
+## Re-run the eval with a real AI_API_KEY
 
-Set `XAI_API_KEY` in `.env.local` through the approved secret workflow, then run:
+Set `AI_API_KEY` (or the legacy `XAI_API_KEY`) in `.env.local` through the approved secret workflow, then run:
 
 ```sh
 npm run eval

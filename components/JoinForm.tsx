@@ -7,7 +7,7 @@ import { privacyNotice, RETENTION_DAYS_DEFAULT } from "@/lib/privacy";
 export const inputCls =
   "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/60 focus:border-emerald-400 focus:outline-none";
 
-export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, retentionDays = RETENTION_DAYS_DEFAULT }: { slug: string; aiEnabled?: boolean; joiningClosed?: boolean; retentionDays?: number }) {
+export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, retentionDays = RETENTION_DAYS_DEFAULT, aiProviderName = "xAI" }: { slug: string; aiEnabled?: boolean; joiningClosed?: boolean; retentionDays?: number; aiProviderName?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [line, setLine] = useState("");
@@ -157,7 +157,7 @@ export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, reten
           {busy ? "Joining…" : "Find my people"}
         </button>
         <ul aria-label="Privacy notice" className="list-disc space-y-1 pl-5 text-sm text-white/55">
-          {privacyNotice(aiEnabled, retentionDays).map((item) => <li key={item}>{item}</li>)}
+          {privacyNotice(aiEnabled, retentionDays, aiProviderName).map((item) => <li key={item}>{item}</li>)}
         </ul>
       </form>
       )}

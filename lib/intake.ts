@@ -6,7 +6,7 @@ import type { JoinInput } from "./types";
 
 export type IntakeRow = JoinInput & { person_key?: string | null; is_sample?: boolean; source_guest_id?: string; source_row?: number };
 
-type IntakeOutcome = { id: string; source: "grok" | "keywords" | "skipped"; changed: boolean };
+type IntakeOutcome = { id: string; source: "ai" | "keywords" | "skipped"; changed: boolean };
 export type IntakeRowResult =
   | { row: number; ok: true; id: string; changed: boolean; extraction: IntakeOutcome["source"] }
   | { row: number; ok: false; error: string };
@@ -22,7 +22,7 @@ export async function insertMembers(
   rows: IntakeRow[],
   concurrency = 4,
   options: { maxMembers?: number; signal?: AbortSignal; aiEnabled?: boolean } = {},
-): Promise<{ imported: string[]; results: IntakeRowResult[]; failed: { row: number; reason: string }[]; skipped_full: number; extraction: ("grok" | "keywords")[] }> {
+): Promise<{ imported: string[]; results: IntakeRowResult[]; failed: { row: number; reason: string }[]; skipped_full: number; extraction: ("ai" | "keywords")[] }> {
   const db = admin();
   const { count, error: countError } = await db.from("members").select("id", { count: "exact", head: true }).eq("event_id", ev.id);
   if (countError) throw countError;
@@ -54,7 +54,7 @@ export async function insertMembers(
     } else skippedFull += 1;
   }
 
-  const extractionSources: ("grok" | "keywords")[] = [];
+  const extractionSources: ("ai" | "keywords")[] = [];
   const settled = await pool(selected, concurrency, async ({ row: r }) => {
     const existing = r.source_guest_id ? existingBySource.get(r.source_guest_id) : undefined;
     const lineChanged = !!existing && (existing.line !== r.line || (existing.speak_on ?? null) !== (r.speak_on ?? null));
@@ -67,7 +67,7 @@ export async function insertMembers(
           offers: existing.offers as string[], seeks: existing.seeks as string[], topics: existing.topics as string[],
           speak_topics: existing.speak_topics as string[], source: "keywords" as const,
         };
-    if (tags.source === "grok" || (!existing && tags.source === "keywords")) extractionSources.push(tags.source);
+    if (tags.source === "ai" || (!existing && tags.source === "keywords")) extractionSources.push(tags.source);
     let person_id: string | null = null;
     const key = r.person_key ?? personKey(r);
     if (ev.community_id && key) person_id = await upsertPerson(ev.community_id, key, r.name).catch(() => null);

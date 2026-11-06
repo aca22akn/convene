@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { admin, create } = vi.hoisted(() => ({ admin: vi.fn(), create: vi.fn() }));
 vi.mock("@/lib/db", () => ({ admin }));
-vi.mock("@/lib/grok", () => ({ grok: () => ({ chat: { completions: { create } } }), GROK_MODEL: "test-model" }));
+vi.mock("@/lib/grok", () => ({ aiClient: () => ({ chat: { completions: { create } } }), aiModel: () => "test-model", aiProviderName: () => "test provider" }));
 
 import { extract } from "@/lib/extract";
 import { aiCallAllowed } from "@/lib/ai-budget";
@@ -21,18 +21,18 @@ describe("daily AI spend guard", () => {
     create.mockReset().mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ offers: ["design"], seeks: [], topics: ["design"], speak_topics: [] }) } }] });
   });
 
-  it("does not call xAI for a third join over the daily budget and still extracts keyword tags", async () => {
+  it("does not call the provider for a third join over the daily budget and still extracts keyword tags", async () => {
     const results = await Promise.all([
       extract("Building a design tool", null, { eventId: "event-1" }),
       extract("Building a design tool", null, { eventId: "event-1" }),
       extract("Building a design tool", null, { eventId: "event-1" }),
     ]);
     expect(create).toHaveBeenCalledTimes(2);
-    expect(results.map((result) => result.source)).toEqual(["grok", "grok", "keywords"]);
+    expect(results.map((result) => result.source)).toEqual(["ai", "ai", "keywords"]);
     expect(results[2].topics).toContain("design");
   });
 
-  it("falls back when an xAI call hangs past the shared join AbortSignal budget", async () => {
+  it("falls back when a provider call hangs past the shared join AbortSignal budget", async () => {
     create.mockImplementationOnce((_body: unknown, options?: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
       options?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
     }));

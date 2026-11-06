@@ -4,7 +4,7 @@ import { inputCls } from "./JoinForm";
 
 type Created = { slug: string; admin_token: string; community_slug: string; community_token: string | null };
 
-export function CreateEvent({ aiAvailable = false }: { aiAvailable?: boolean }) {
+export function CreateEvent({ aiAvailable = false, aiProviderName = "xAI" }: { aiAvailable?: boolean; aiProviderName?: string }) {
   const [name, setName] = useState("");
   const [communityName, setCommunityName] = useState("");
   const [communitySlug, setCommunitySlug] = useState("");
@@ -88,7 +88,7 @@ export function CreateEvent({ aiAvailable = false }: { aiAvailable?: boolean }) 
         </label>
         <label className="flex items-start gap-3 sm:col-span-2">
           <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={aiEnabled} disabled={!aiAvailable} onChange={(e) => setAiEnabled(e.target.checked)} />
-          <span className="text-white/75">Use xAI for matching and Ask (attendees can opt out){!aiAvailable && " — unavailable until XAI_API_KEY is configured"}</span>
+          <span className="text-white/75">Use {aiProviderName} for matching and Ask (attendees can opt out){!aiAvailable && " — unavailable until AI_API_KEY or XAI_API_KEY is configured"}</span>
         </label>
         {error && <p className="text-red-300 sm:col-span-2">{error}</p>}
         <button disabled={busy} className="rounded-xl bg-emerald-400 py-3 font-semibold text-black disabled:opacity-60 sm:col-span-2">

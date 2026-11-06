@@ -67,8 +67,9 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/grok", () => ({
-  GROK_MODEL: "test-model",
-  grok: () => ({
+  aiModel: () => "test-model",
+  aiAvailable: () => Boolean(process.env.AI_API_KEY || process.env.XAI_API_KEY),
+  aiClient: () => ({
     responses: {
       create: async (args: { tools: { authorization: string }[] }) => {
         fakeDb.calls += 1;
@@ -265,7 +266,7 @@ describe("token scope and sessions", () => {
     expect(fakeDb.tables.events.at(-1)?.ai_enabled).toBe(true);
   });
 
-  it("sends only a short-lived, scope-bound LLM token to xAI", async () => {
+  it("sends only a short-lived, scope-bound LLM token to the configured provider", async () => {
     fakeDb.tables.access_tokens.push({
       token_hash: hashToken(sessionToken), token_type: "session", event_id: null, community_id: "c1",
       llm: false, expires_at: new Date(Date.now() + 60_000).toISOString(),
@@ -308,7 +309,7 @@ describe("token scope and sessions", () => {
     expect(fakeDb.calls).toBe(0);
   });
 
-  it("makes no xAI call for an event where AI is disabled", async () => {
+  it("makes no provider call for an event where AI is disabled", async () => {
     fakeDb.tables.events = [{ ...event, ai_enabled: false }];
     vi.stubEnv("NEXT_PUBLIC_BASE_URL", "https://convene.example");
     const response = await ask(new Request("https://convene.example/api/c/northstar/ask", {

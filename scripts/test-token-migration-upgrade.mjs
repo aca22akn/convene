@@ -200,6 +200,7 @@ async function main() {
       SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
       PUBLIC_ID_SECRET: "integration-placeholder-public-id-secret",
       PERSON_KEY_PEPPER: "integration-placeholder-person-key-pepper",
+      AI_API_KEY: "",
       XAI_API_KEY: "",
     };
     const tests = run(npx, ["vitest", "run", "--config", "vitest.integration-upgrade.config.ts"], testEnv);

@@ -5,6 +5,7 @@ import { bad, json, slugify } from "@/lib/api";
 import { hashToken, tokenHashMatches } from "@/lib/auth";
 import { envLimit, limit } from "@/lib/ratelimit";
 import { bodyErrorResponse, readLimitedJson } from "@/lib/request-body";
+import { aiAvailable } from "@/lib/grok";
 
 const MAX_SLUG_ATTEMPTS = 5;
 
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
         community_id: community!.id,
         admin_token_hash: hashToken(eventToken),
         member_cap: envLimit("MAX_MEMBERS_PER_EVENT", 200),
-        ai_enabled: Boolean(process.env.XAI_API_KEY) && (parsed.data.ai_enabled ?? true),
+        ai_enabled: aiAvailable() && (parsed.data.ai_enabled ?? true),
       })
       .select("slug")
       .single();

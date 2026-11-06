@@ -6,6 +6,7 @@ import { admin } from "../lib/db";
 import { hashToken } from "../lib/auth";
 import { insertMembers } from "../lib/intake";
 import { recompute } from "../lib/recompute";
+import { aiAvailable } from "../lib/grok";
 
 type Sample = { sample_id: number; name: string; line: string; speak_on?: string | null };
 
@@ -17,7 +18,7 @@ async function upsertEvent(db: ReturnType<typeof admin>, communityId: string, sl
       name,
       community_id: communityId,
       admin_token_hash: hashToken(randomBytes(32).toString("base64url")),
-      ai_enabled: Boolean(process.env.XAI_API_KEY),
+      ai_enabled: aiAvailable(),
     }, { onConflict: "slug" })
     .select("id,community_id")
     .single();

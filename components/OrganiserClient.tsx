@@ -15,7 +15,7 @@ const EXAMPLES = [
   "Who has come to more than one event and is looking for a cofounder?",
 ];
 
-export function OrganiserClient({ slug, mock }: { slug: string; mock: boolean }) {
+export function OrganiserClient({ slug, mock, aiProviderName = "xAI" }: { slug: string; mock: boolean; aiProviderName?: string }) {
   const [manualToken, setManualToken] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
@@ -223,7 +223,7 @@ export function OrganiserClient({ slug, mock }: { slug: string; mock: boolean })
             ))}
           </div>
         </section>
-        <ImportBox slug={slug} aiEnabled={data?.event.ai_enabled === true} onDone={refetch} />
+        <ImportBox slug={slug} aiEnabled={data?.event.ai_enabled === true} aiProviderName={aiProviderName} onDone={refetch} />
       </div>
 
       <DangerZone slug={slug} />
@@ -294,7 +294,7 @@ function AskBox({ community }: { community?: string | null }) {
   );
 }
 
-function ImportBox({ slug, aiEnabled, onDone }: { slug: string; aiEnabled: boolean; onDone: () => void }) {
+function ImportBox({ slug, aiEnabled, aiProviderName, onDone }: { slug: string; aiEnabled: boolean; aiProviderName: string; onDone: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -310,7 +310,7 @@ function ImportBox({ slug, aiEnabled, onDone }: { slug: string; aiEnabled: boole
         body: await f.text(),
       });
       const body = await res.json().catch(() => ({}));
-      setMsg(res.ok ? `Imported ${body.imported ?? 0} guests${body.ai_used ? " using xAI" : " with keyword matching"}.` : body.error ?? `Error ${res.status}`);
+      setMsg(res.ok ? `Imported ${body.imported ?? 0} guests${body.ai_used ? ` using ${aiProviderName}` : " with keyword matching"}.` : body.error ?? `Error ${res.status}`);
       onDone();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Upload failed");
@@ -326,7 +326,7 @@ function ImportBox({ slug, aiEnabled, onDone }: { slug: string; aiEnabled: boole
       {aiEnabled && (
         <label className="mt-3 flex items-start gap-3 text-sm text-white/75">
           <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
-          <span>I confirm attendees were told their answers are analysed by xAI.</span>
+          <span>I confirm attendees were told their answers are analysed by {aiProviderName}.</span>
         </label>
       )}
       <label htmlFor="luma-csv" className="mt-3 block text-sm font-medium text-white/80">Luma CSV export</label>
