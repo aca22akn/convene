@@ -43,7 +43,8 @@ export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean })
       <p className="text-white/60">{data?.total ?? data?.people.length ?? 0} members opted into the directory.</p>
       <p className="mt-1 text-sm text-white/45">Only members who opt in appear in this directory.</p>
       {error && !data && <p className="mt-4 text-red-300">{error}</p>}
-      <input className={`${inputCls} mt-6`} placeholder="Search names, what people build, talks…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      <label htmlFor="directory-search" className="mt-6 block text-sm font-medium text-white/80">Search the directory</label>
+      <input id="directory-search" className={`${inputCls} mt-1`} placeholder="Search names, what people build, talks…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <ul className="mt-6 divide-y divide-white/10 rounded-2xl border border-white/10">
         {people.map((p, index) => (
           <li key={`${p.name}-${index}`} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-start sm:gap-4">

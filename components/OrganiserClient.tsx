@@ -269,14 +269,15 @@ function AskBox({ community }: { community?: string | null }) {
     <section className={`${card} mt-6`}>
       <h2 className="text-lg font-semibold">Ask your community</h2>
       <p className="text-sm text-white/55">Grok answers with read-only tools scoped to the access you used: this event for an event token, or all community events for a community token.</p>
+      <label htmlFor="community-question" className="mt-3 block text-sm font-medium text-white/80">Question</label>
       <form
-        className="mt-3 flex flex-col gap-2 sm:flex-row"
+        className="mt-1 flex flex-col gap-2 sm:flex-row"
         onSubmit={(e) => {
           e.preventDefault();
           ask(question);
         }}
       >
-        <input className={inputCls} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Who could speak about Postgres next month?" />
+        <input id="community-question" className={inputCls} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Who could speak about Postgres next month?" />
         <button disabled={busy || !community} className="rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-black disabled:opacity-50">
           {busy ? "Thinking…" : "Ask"}
         </button>
@@ -328,7 +329,8 @@ function ImportBox({ slug, aiEnabled, onDone }: { slug: string; aiEnabled: boole
           <span>I confirm attendees were told their answers are analysed by xAI.</span>
         </label>
       )}
-      <input type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} className="mt-3 block text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
+      <label htmlFor="luma-csv" className="mt-3 block text-sm font-medium text-white/80">Luma CSV export</label>
+      <input id="luma-csv" type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} className="mt-1 block text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
       {msg && <p className="mt-2 text-white/80">{msg}</p>}
     </section>
   );

@@ -70,10 +70,22 @@ export function CreateEvent({ aiAvailable = false }: { aiAvailable?: boolean }) 
     <section className="mt-14 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <h2 className="text-2xl font-semibold">Run it at your next event</h2>
       <form onSubmit={submit} className="mt-4 grid gap-3 sm:grid-cols-2">
-        <input className={`${inputCls} sm:col-span-2`} required maxLength={80} placeholder="Event name, e.g. Agents Night #12" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className={inputCls} maxLength={80} placeholder="Community name (new)" value={communityName} onChange={(e) => setCommunityName(e.target.value)} />
-        <input className={inputCls} maxLength={60} placeholder="…or existing community slug" value={communitySlug} onChange={(e) => setCommunitySlug(e.target.value)} autoCapitalize="off" />
-        <input className={`${inputCls} sm:col-span-2`} maxLength={128} placeholder="Existing community token (if joining one)" value={communityToken} onChange={(e) => setCommunityToken(e.target.value)} autoCapitalize="off" autoComplete="off" />
+        <label className="sm:col-span-2">
+          <span className="mb-1 block text-sm font-medium text-white/80">Event name</span>
+          <input className={inputCls} required maxLength={80} placeholder="Event name, e.g. Agents Night #12" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label>
+          <span className="mb-1 block text-sm font-medium text-white/80">New community name</span>
+          <input className={inputCls} maxLength={80} placeholder="Community name (new)" value={communityName} onChange={(e) => setCommunityName(e.target.value)} />
+        </label>
+        <label>
+          <span className="mb-1 block text-sm font-medium text-white/80">Existing community slug</span>
+          <input className={inputCls} maxLength={60} placeholder="…or existing community slug" value={communitySlug} onChange={(e) => setCommunitySlug(e.target.value)} autoCapitalize="off" />
+        </label>
+        <label className="sm:col-span-2">
+          <span className="mb-1 block text-sm font-medium text-white/80">Existing community token</span>
+          <input className={inputCls} maxLength={128} placeholder="Existing community token (if joining one)" value={communityToken} onChange={(e) => setCommunityToken(e.target.value)} autoCapitalize="off" autoComplete="off" />
+        </label>
         <label className="flex items-start gap-3 sm:col-span-2">
           <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={aiEnabled} disabled={!aiAvailable} onChange={(e) => setAiEnabled(e.target.checked)} />
           <span className="text-white/75">Use xAI for matching and Ask (attendees can opt out){!aiAvailable && " — unavailable until XAI_API_KEY is configured"}</span>
