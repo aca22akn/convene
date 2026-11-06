@@ -46,7 +46,7 @@ describe("JoinForm directory consent", () => {
       target: { value: "Building a useful tool and looking for design feedback" },
     });
     fireEvent.click(screen.getByRole("button", { name: /find my people/i }));
-    expect(await screen.findByText("This room is full")).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toContain("This room is full");
   });
 
   it("shows that the doors are closed without rendering the join form", () => {

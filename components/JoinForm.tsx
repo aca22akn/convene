@@ -152,7 +152,7 @@ export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, reten
             <span className="text-white/80">Keep my text away from external AI; I&apos;ll get basic matching only</span>
           </label>
         )}
-        {error && <p className="rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
+        {error && <p role="alert" className="rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
         <button disabled={busy} className="w-full rounded-xl bg-emerald-400 py-4 text-lg font-semibold text-black disabled:opacity-60">
           {busy ? "Joining…" : "Find my people"}
         </button>
