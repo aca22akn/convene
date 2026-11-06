@@ -34,7 +34,7 @@ test("stage List view has no accessibility violations", async ({ page }) => {
 
 test("closed-doors join mock page has no accessibility violations", async ({ page }) => {
   await page.goto("/e/demo?mock=1&closed=1");
-  await expect(page.getByRole("status")).toContainText("The doors are closed");
+  await expect(page.getByRole("status").filter({ hasText: "The doors are closed" })).toContainText("The doors are closed");
 
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
@@ -48,7 +48,7 @@ test("room-full join mock page has no accessibility violations", async ({ page }
   await page.getByRole("textbox", { name: "Name" }).fill("Priya Raman");
   await page.getByRole("textbox", { name: /what are you building/i }).fill("Building a useful tool and looking for design feedback");
   await page.getByRole("button", { name: "Find my people" }).click();
-  await expect(page.getByRole("alert")).toContainText("This room is full");
+  await expect(page.getByRole("alert").filter({ hasText: "This room is full" })).toContainText("This room is full");
 
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
