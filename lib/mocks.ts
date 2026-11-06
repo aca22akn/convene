@@ -96,11 +96,18 @@ const liveIntros: LiveIntro[] = I.map((intro) => ({
     : intro.reasons[0]?.text ?? "",
 }));
 
+const stageHeadline = (index: number) => `Introduction ${index}: ${"a useful, deliberately long explanation of why these two people should meet at this event ".repeat(3).trim()}`;
+const overflowLiveIntros: LiveIntro[] = [
+  ...liveIntros.map((intro, index) => ({ ...intro, headline: stageHeadline(index + 1) })),
+  { a_id: "m2", b_id: "m3", created_at: "2026-10-22T19:14:00Z", headline: stageHeadline(4) },
+  { a_id: "m2", b_id: "m4", created_at: "2026-10-22T19:15:00Z", headline: stageHeadline(5) },
+];
+
 export const mockLive: LiveView = {
   event: { id: "demo-event", name: "Demo night", slug: "demo" },
   count: liveMembers.length,
   members: liveMembers,
-  intros: liveIntros,
+  intros: overflowLiveIntros,
 };
 
 export const mockMe: MeView = {

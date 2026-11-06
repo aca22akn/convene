@@ -42,11 +42,12 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
         <div className="min-h-[320px] flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
           <Graph members={members} intros={data?.intros ?? []} />
         </div>
-        <div className="max-h-[38%] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="flex min-h-0 max-h-[38%] flex-col rounded-3xl border border-white/10 bg-white/[0.03] p-5">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-white/50">Latest intros</h2>
           {intros.length === 0 && <p className="mt-3 text-2xl text-white/50">Intros appear here as people join.</p>}
-          <ul className="mt-3 space-y-3">
-            {intros.slice(0, 5).map((i) => {
+          {intros.length > 3 && <p className="mt-1 text-sm text-white/55">{intros.length - 3} more below</p>}
+          <ul aria-label="Latest introductions" className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+            {intros.map((i) => {
               const a = byId.get(i.a_id);
               const b = byId.get(i.b_id);
               return (
@@ -55,7 +56,7 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
                     {a?.display_name ?? "?"} ↔ {b?.display_name ?? "?"}
                   </span>
                   <span className="text-white/45"> · </span>
-                  <span className="text-amber-200">{i.headline}</span>
+                  <span className="block line-clamp-2 text-amber-200" title={i.headline}>{i.headline}</span>
                 </li>
               );
             })}
