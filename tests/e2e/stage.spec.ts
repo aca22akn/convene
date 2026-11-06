@@ -13,6 +13,20 @@ test("demo stage renders and its content is inside a landmark", async ({ page })
   expect(accessibility.violations).toEqual([]);
 });
 
+test("stage exposes every introduction in a keyboard-operated list view", async ({ page }) => {
+  await page.goto("/e/demo/stage?mock=1");
+
+  const toggle = page.getByRole("button", { name: "List view" });
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+  const list = page.getByRole("list", { name: "Introduction list" });
+  await expect(list).toBeVisible();
+  await expect(list.getByRole("listitem")).toHaveCount(5);
+  await expect(list).toContainText("Introduction 5");
+});
+
 for (const [width, height] of [[1366, 768], [1920, 1080]] as const) {
   test(`stage keeps five long introductions reachable at ${width}×${height}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height });
