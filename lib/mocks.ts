@@ -111,7 +111,7 @@ export const mockLive: LiveView = {
 };
 
 export const mockMe: MeView = {
-  event: { id: mockLive.event.id },
+  event: { id: mockLive.event.id, member_count: mockLive.count },
   member: { id: "m1", name: M[0].name, line: M[0].line },
   matches: [
     { member: { id: "m2", name: M[1].name, line: M[1].line, x_handle: "tomok" }, reasons: I[0].reasons },

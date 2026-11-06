@@ -105,7 +105,7 @@ export type Edge = {
 
 /** /me payload */
 export type MeView = {
-  event: { id: string };
+  event: { id: string; member_count: number };
   member: Pick<Member, "id" | "name" | "line">;
   matches: { member: Pick<Member, "id" | "name" | "line" | "x_handle">; reasons: Reason[] }[];
 };

@@ -44,9 +44,11 @@ function createQuery(table: string) {
     order: vi.fn(async () => ({ data: table === "members" ? members : intros, error: null })),
     maybeSingle: vi.fn(async () => ({ data: lookupId === members[0].id ? members[0] : null, error: null })),
     or: vi.fn(() => builder),
-    then: (resolve: (value: { data: unknown[]; error: null }) => unknown, reject?: (reason: unknown) => unknown) => {
-      const data = table === "members" && selected.includes("name") ? members : intros;
-      return Promise.resolve({ data, error: null }).then(resolve, reject);
+    then: (resolve: (value: { data: unknown[] | null; count?: number; error: null }) => unknown, reject?: (reason: unknown) => unknown) => {
+      const result = table === "members" && selected === "id"
+        ? { data: null, count: members.length, error: null }
+        : { data: table === "members" && selected.includes("name") ? members : intros, error: null };
+      return Promise.resolve(result).then(resolve, reject);
     },
   };
   return builder;
@@ -87,14 +89,14 @@ describe("public live IDs cannot recover a member profile", () => {
     expect(await profileResponse.text()).not.toContain("Rich private profile text");
   });
 
-  it("returns only the event ID needed to subscribe the member page to private broadcasts", async () => {
+  it("returns the event ID and room size needed for private member-page status", async () => {
     const response = await meGET(
       new Request(`http://localhost/api/e/demo/me?id=${encodeURIComponent(rawMemberIds[0])}`),
       { params: Promise.resolve({ slug: "demo" }) },
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ event: { id: event.id } });
+    expect(await response.json()).toMatchObject({ event: { id: event.id, member_count: members.length } });
     expect(response.headers.get("etag")).toBeTruthy();
   });
 
