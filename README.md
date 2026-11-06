@@ -63,10 +63,17 @@ flowchart LR
   C1 --> C2[Stage 2: one Grok rerank call<br/>0-10 + quoted reasons]
   C2 --> G[Grounding check:<br/>quote ⊂ a line?]
   G --> B[Edmonds blossom ×2 rounds<br/>≤ 2 intros each]
-  B --> DB
-  Server -- private broadcast + 3s polling fallback --> ME[/me: your 2 people/]
-  Server -- private broadcast + 3s polling fallback --> ST[/stage: QR, graph, feed/]
+  B --> C[convene_commit_intros RPC<br/>advisory lock + capacity recheck]
+  C --> DB
+  C --> N[notifyEvent private broadcast]
+  N --> ME[/me: your 2 people/]
+  N --> ST[/stage: QR, graph, feed/]
+  ME -. 10s fallback poll .-> Server
+  ST -. 10s fallback poll .-> Server
   DB --> O[/organiser: needs vs offers,<br/>speaker inbox, vcf/csv, delete/]
+  T[Organiser token in URL fragment] --> E[POST /api/auth/exchange]
+  E --> S[Hashed 12h server-side session<br/>HttpOnly __Host-convene_session]
+  S --> O
   DB --> MCP[/api/mcp read-only tools/]
   MCP --> A[Ask your community<br/>Grok Responses API + MCP]
 ```
@@ -78,18 +85,7 @@ flowchart LR
 3. **Stage 2 — rerank.** One Grok call per new member scores each candidate 0–10 and gives two reasons, each with a `quote`.
 4. **Grounding.** A reason is kept only if its quote is an exact substring of one of the two members' lines (checked in code, [`lib/ground.ts`](lib/ground.ts)). A pair with zero grounded reasons gets rerank 0. Pairs without grounded reasons get a template reason built from shared tags.
 5. **Weight** = `0.4 · normalised tag score + 0.6 · rerank/10` (tag score only with no API key).
-6. **Assignment.** Maximum-weight matching (Edmonds' blossom) among people with spare capacity; remove those pairs and run again, so each person gets up to two intros. Existing intros never change, so a phone never "loses" a match; recompute is idempotent. A greedy version is kept for comparison.
-
-### Matching scale benchmark
-
-`npm run bench` measures pure planning on synthetic rooms. These indicative measurements are the median of nine runs after one warm-up on Windows NT build 10.0.26200, x64, Intel Core i7-12700H. Database commit timing is marked CI-only: this synthetic benchmark does not connect to a database, and SQL commit behaviour is verified by the Supabase integration job.
-
-| Members | Plan median (ms) | Pair evaluations | Database commit |
-|---:|---:|---:|---|
-| 50 | 0.90 | 144 | CI-only |
-| 100 | 1.65 | 558 | CI-only |
-| 200 | 5.76 | 2,200 | CI-only |
-| 500 | 25.35 | 13,958 | CI-only |
+6. **Assignment and commit.** The pure planner computes a deterministic proposal for its input snapshot. `convene_commit_intros` then serializes concurrent plans with an advisory lock and rechecks duplicate-pair and two-intro capacity rules before committing. The integration suite exercises overlapping plans and sequential commits; recompute retries a dropped stale plan but never deletes or rewrites committed introductions. A greedy planner remains only for evaluation.
 
 ## Privacy
 
@@ -99,8 +95,8 @@ flowchart LR
 - Contact details are shared with the organiser only if you consent.
 - The public directory shows your profile only if you opt in.
 - The organiser can delete event data at any time.
-- When event AI is enabled, names, lines, and speaker topics may be processed by xAI for matching and Ask unless a person opts out; opted-out text is excluded from AI prompts.
-- When event AI is disabled, external AI is not called and matching uses keyword extraction and tags.
+- Each event controls external AI with `ai_enabled`; when it is off, external AI is not called and matching uses keyword extraction and tags.
+- When `ai_enabled` is on, attendees can set `ai_opt_out`. Names, lines, X handles, and speaker topics from people who have not opted out may be processed by xAI for matching and Ask; opted-out people are excluded from AI prompts and receive basic matching only.
 - Event data is retained for 365 days, then deleted automatically.
 <!-- PRIVACY:END -->
 
@@ -120,7 +116,7 @@ The organiser page's **Ask your community** box calls the Grok Responses API wit
 
 ### Upgrading an existing installation
 
-Before deploying this version, configure the same persistent `PERSON_KEY_PEPPER` for the maintenance command and every app instance, and configure `PUBLIC_ID_SECRET` for Production and Preview. The production build throws when `PERSON_KEY_PEPPER` is missing. Back up the pepper securely: losing it makes existing person keys unrecoverable. Apply the expand migrations with `npx supabase db push`. Then pause joins and imports and wait for all old app instances to drain; keep writes paused through the rehash and deployment so no old instance can create another raw person key. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people`. Deploy the new app with that same pepper, verify organiser links and returning-member identity, and resume writes. Finally, apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to remove the legacy plaintext token columns. Do not apply the manual contract before the hash-based app is deployed and verified.
+Before deploying this version, configure the same persistent `PERSON_KEY_PEPPER` for the maintenance command and every app instance, and configure `PUBLIC_ID_SECRET` for Production and Preview. The production build throws when `PERSON_KEY_PEPPER` is missing. Back up the pepper securely: losing it makes existing person keys unrecoverable. Apply the expand migrations with `npx supabase db push`. Then pause joins and imports and wait for all old app instances to drain; keep writes paused through the rehash and deployment so no old instance can create another raw person key. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people`. After deploying the hash-based app with that same pepper, verify legacy organiser links through the exchange flow and confirm returning-member identity before resuming writes. Only then apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to remove the legacy plaintext token columns. Do not apply the manual contract before the hash-based app is deployed and verified.
 
 ## Evaluation
 
@@ -142,18 +138,19 @@ Before deploying this version, configure the same persistent `PERSON_KEY_PEPPER`
 
 Note: the keyword fallback was written while looking at this same sample data, so its scores are optimistic. Grok rows vary between runs.
 
-## Known limits
+## Limits
 
-- **Abuse and cost budgets.** Rooms cap at 200 members by default. Defaults are 8 joins per 10 minutes per IP and 400 per hour per event; 5 event creations per hour per IP and 200 per day globally; 6 imports per hour per scope; 5 Ask/MCP calls per minute and 20 per hour per scope; and 10 token exchanges per 10 minutes per IP. xAI calls are capped at 3,000 per UTC day globally and 400 per event. Every value is configurable with the variables in `.env.example`; missing client IPs share a stricter two-request bucket.
-- **Latency.** Join-to-intro is typically ~10 s on Vercel with Grok (extraction + one rerank call); it degrades to keyword extraction and tag-only matching when Grok is slow or absent. The eval's latency figures below were measured locally, so they include network round-trips to xAI from a laptop.
-- **Blossom vs greedy.** Blossom maximises total match weight, which is not the same as matching the human labels: on the 40-person sample its recall is slightly below greedy's. We use it because it is the optimal assignment for the weights, and keep greedy for comparison.
-- **Concurrency.** Intro commits serialize under an event advisory lock; real members stay at no more than two committed intros, and the database trigger protects direct inserts as a backstop.
-- **Fixed vocabulary.** 40 tags cover the London tech-community lines we saw; niche needs fall back to Grok's reasons and the "topics" overlap.
-- **Demo room.** Sample members are fictional (`is_sample`). Once real people join, intros between two sample members stop counting toward capacity, so live joiners can still be matched to the best sample people.
-- **Auth.** Event and community admin tokens are stored as SHA-256 hashes. Organiser links exchange their fragment token for a 12-hour HttpOnly session. Event tokens are scoped to one event; community tokens cover all events in that community. Old `?token=` organiser links are exchanged once and redirected to the clean URL.
-- **Token migration staging.** Run `supabase db push` to apply the expand migration before deploying the hash-based app. It preserves the legacy database defaults and uses triggers so old app inserts still receive their tokens while their hashes are backfilled; new hash-based writes clear the generated plaintext value. After deploying the hash-based app, verify legacy organiser links through the exchange flow, then manually apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to drop the triggers and plaintext columns. The `.sql.manual` file is intentionally excluded from ordinary `db push`.
-- Legacy token values reused across rows are reduced to one deterministic scope before unique indexes are added. Values matching a community token stay community-scoped; other duplicate event values remain bound to one event row because a reused token cannot safely express multiple strict scopes.
-- Lines are free text and shown publicly on the stage screen; tell people that before they type.
+- **Designed room and matching constraints.** The default room cap is 200 members (`MAX_MEMBERS_PER_EVENT`), and the commit RPC permits at most two committed introductions per real member.
+- **Measured planner cost.** `npm run bench` on 2026-11-06 (Windows 10.0.26200, x64, Intel Core i7-12700H) measured the median of nine warmed pure-planning passes. Database commit time is intentionally `CI-only`: this benchmark does not connect to Postgres.
+
+  | Members | Plan median (ms) | Pair evaluations | Database commit |
+  |---:|---:|---:|---|
+  | 50 | 0.85 | 144 | CI-only |
+  | 100 | 1.81 | 558 | CI-only |
+  | 200 | 5.17 | 2,200 | CI-only |
+  | 500 | 23.36 | 13,958 | CI-only |
+
+- **Default request and AI budgets.** 8 joins per 10 minutes per IP; 400 joins per hour per event; 5 event creations per hour per IP and 200 per day globally; 6 imports per hour per event; 5 Ask/MCP calls per minute and 20 per hour per scope; and 10 token exchanges per 10 minutes per IP. Missing client IPs use a two-request bucket. xAI calls are limited to 3,000 per UTC day globally and 400 per event per UTC day. The values are environment-tunable; their defaults are listed in `.env.example`.
 
 ## Development and CI
 
@@ -161,7 +158,7 @@ Production builds are verified only in Linux CI because that matches our deploym
 
 ## Tests
 
-`npm test` runs Vitest over matching (0/1/odd rooms, capacity, determinism, blossom vs greedy, idempotent recompute), grounding, extraction fallback, Luma CSV import, vCard/CSV export, community memory keys and MCP helpers. `npm run eval` reproduces the table below.
+`npm test` runs Vitest over matching (0/1/odd rooms, capacity, deterministic pure planning, blossom vs greedy, and commit-retry behaviour), grounding, extraction fallback, Luma CSV import, vCard/CSV export, community memory keys, routes, components, and MCP helpers. The Supabase integration suite separately checks the commit RPC under overlapping and sequential plans. `npm run eval` reproduces the table below.
 
 ## License
 

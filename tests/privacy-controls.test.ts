@@ -30,7 +30,7 @@ describe("shared privacy notice", () => {
         "Contact details are shared with the organiser only if you consent.",
         "The public directory shows your profile only if you opt in.",
         "The organiser can delete event data at any time.",
-        "External AI processing is off for this event; matching uses basic keyword extraction and tag-only matching.",
+        "External AI processing is off for this event (\`ai_enabled\` is off); matching uses basic keyword extraction and tag-only matching.",
         "Event data is retained for 365 days, then deleted automatically.",
       ]
     `);
@@ -41,7 +41,7 @@ describe("shared privacy notice", () => {
         "Contact details are shared with the organiser only if you consent.",
         "The public directory shows your profile only if you opt in.",
         "The organiser can delete event data at any time.",
-        "When event AI is enabled, your name, line, and speaker topic may be processed by xAI for matching and Ask unless you opt out. If you opt out, only basic keyword matching is used and your text is excluded from AI prompts.",
+        "When event AI is enabled (\`ai_enabled\`), your name, line, X handle, and speaker topic may be processed by xAI for matching and Ask unless you set \`ai_opt_out\`. If you opt out, only basic keyword matching is used and your text is excluded from AI prompts.",
         "Event data is retained for 365 days, then deleted automatically.",
       ]
     `);

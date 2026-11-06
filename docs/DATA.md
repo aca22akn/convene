@@ -4,6 +4,10 @@ Event data is retained for `RETENTION_DAYS` days (365 by default) and removed da
 
 `members` rows are private to server-side routes and authorised organisers. Public directory rows are available only when `directory_consent` is true, and the public live screen has a reduced projection. xAI receives attendee text only when the event has `ai_enabled = true` and that attendee has `ai_opt_out = false`.
 
+## AI processing decision
+
+`events.ai_enabled` controls whether an event may call xAI. If it is false, extraction, reranking, and Ask use no external AI. When it is true, `members.ai_opt_out` lets an attendee keep their text out of external AI: opted-out people are excluded both as the subject and as candidates in AI prompts, and receive keyword/tag-based matching. The public join notice and README privacy section describe the same rule.
+
 | Column | Stored as | Read by | Sent to xAI | Retention / handling |
 |---|---|---|---|---|
 | `id` | UUID primary key | Organiser, attendee, server matching | Yes, as the authorised `member_id` in Ask/MCP tools | Deleted with event |

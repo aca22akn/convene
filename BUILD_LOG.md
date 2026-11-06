@@ -3,3 +3,4 @@
 - 20:12 Vercel project linked, env set, first prod deploy https://convene-zeta.vercel.app
 - 20:42 All lanes integrated: extraction, two-stage matching, blossom ×2, grounding, API, MCP, 5 pages, seed, eval; 41 tests green; extraction switched to fast Grok model (2s vs 10s)
 - 20:42 Prod e2e verified: join→2 grounded intros in ~9s on Vercel; MCP 401/tools ok; vcf/organiser/directory ok
+- 2026-11-06 Phase 7: aligned README architecture, privacy, commit semantics and measured limits with hardening controls; added the data-flow clarification and security policy.
