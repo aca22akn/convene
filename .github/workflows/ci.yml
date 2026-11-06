@@ -25,6 +25,17 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Reject retired data paths and unsafe text
+        run: |
+          if git grep -n --fixed-strings "postgres_changes" -- app components lib; then
+            exit 1
+          fi
+          if git grep -n --fixed-strings "?token=" -- app/api; then
+            exit 1
+          fi
+          if git grep -n --fixed-strings "Nothing is sent to anyone" -- README.md app components data docs lib scripts tests; then
+            exit 1
+          fi
       - run: npm audit --omit=dev --audit-level=high
       - name: Build with dummy credentials
         run: npm run build
