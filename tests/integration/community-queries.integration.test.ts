@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { rankSearch, summarisePeople, type CommunityMember, type PersonSummary } from "@/lib/mcpTools";
 import { tagsIn } from "@/lib/keywords";
+import { hashPersonKey } from "@/lib/people";
 import { TAGS, type Tag } from "@/lib/types";
 import { anon, createCommunity, createEvent, service } from "./helpers";
 
@@ -10,6 +11,7 @@ type FixtureMember = CommunityMember & { event_slug: string };
 function memberRow(input: {
   eventId: string;
   eventSlug: string;
+  memberId?: string;
   personId?: string;
   name: string;
   line: string;
@@ -22,7 +24,7 @@ function memberRow(input: {
   speakTopics?: Tag[];
 }): FixtureMember & { contact: null; directory_consent: boolean; ai_opt_out: boolean } {
   return {
-    id: randomUUID(),
+    id: input.memberId ?? randomUUID(),
     event_id: input.eventId,
     event_slug: input.eventSlug,
     person_id: input.personId ?? randomUUID(),
@@ -43,13 +45,33 @@ function memberRow(input: {
   };
 }
 
-async function insertMembers(rows: ReturnType<typeof memberRow>[]) {
+function failInsert(operation: string, error: { message: string; details: string | null; code: string; hint: string | null }): never {
+  throw new Error(`${operation} failed: ${error.message} (code: ${error.code}; details: ${error.details ?? "none"}; hint: ${error.hint ?? "none"})`);
+}
+
+async function insertFixtureRows(communityId: string, rows: ReturnType<typeof memberRow>[]) {
+  const peopleById = new Map<string, { id: string; community_id: string; key: string; name: string }>();
+  for (const row of rows) {
+    if (!row.person_id) throw new Error(`Fixture member ${row.id} is missing its person id`);
+    if (!peopleById.has(row.person_id)) {
+      peopleById.set(row.person_id, {
+        id: row.person_id,
+        community_id: communityId,
+        key: hashPersonKey(`community-query:${communityId}:${row.person_id}`, "community-query-integration-fixture-pepper"),
+        name: row.name,
+      });
+    }
+  }
+
+  const { error: peopleError } = await service.from("people").insert([...peopleById.values()]);
+  if (peopleError) failInsert("insert community query fixture people", peopleError);
+
   const { error } = await service.from("members").insert(rows.map((row) => {
     const { event_slug, ...databaseRow } = row;
     void event_slug;
     return databaseRow;
   }));
-  if (error) throw error;
+  if (error) failInsert("insert community query fixture members", error);
 }
 
 function searchTags(query: string) {
@@ -72,25 +94,28 @@ describe("database-side community queries", () => {
     const firstEvent = await createEvent(community.id);
     const secondEvent = await createEvent(community.id);
     const sharedPersonId = randomUUID();
+    const tiedCreatedAt = "2026-11-01T00:00:00.000Z";
     const fixture = Array.from({ length: 52 }, (_, index) => memberRow({
       eventId: firstEvent.id,
       eventSlug: firstEvent.slug,
+      memberId: index === 0 ? "00000000-0000-4000-8000-000000000001" : undefined,
       personId: index === 0 ? sharedPersonId : undefined,
       name: `Directory ${String(index).padStart(2, "0")}`,
       line: `Building directory project ${index}`,
-      createdAt: new Date(Date.UTC(2026, 10, 1, 0, index)).toISOString(),
+      createdAt: tiedCreatedAt,
       directoryConsent: index !== 51,
     }));
     fixture.push(memberRow({
       eventId: secondEvent.id,
       eventSlug: secondEvent.slug,
+      memberId: "00000000-0000-4000-8000-000000000002",
       personId: sharedPersonId,
       name: "Directory latest",
       line: "Latest line from the second event",
-      createdAt: "2026-11-03T00:00:00.000Z",
+      createdAt: tiedCreatedAt,
       directoryConsent: true,
     }));
-    await insertMembers(fixture);
+    await insertFixtureRows(community.id, fixture);
 
     const args = { p_community: community.id, p_event_ids: null, p_limit: 50, p_after: null };
     const first = await service.rpc("community_people", args);
@@ -103,6 +128,9 @@ describe("database-side community queries", () => {
     expect(firstPage.total).toBe(51);
     expect(firstPage.people).toHaveLength(50);
     expect(firstPage.people.map((person) => person.person_id)).toEqual(repeatedPage.people.map((person) => person.person_id));
+    expect(firstPage.people.map((person) => person.person_id)).toEqual(
+      [...firstPage.people.map((person) => person.person_id)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0),
+    );
     expect(firstPage.people.some((person) => person.name === "Directory 51")).toBe(false);
     expect(firstPage.next_cursor).toBeTruthy();
 
@@ -124,6 +152,7 @@ describe("database-side community queries", () => {
     expect(secondPage.total).toBe(51);
     expect(secondPage.people).toHaveLength(1);
     expect(secondPage.next_cursor).toBeNull();
+    expect(secondPage.people[0].person_id > firstPage.people.at(-1)!.person_id).toBe(true);
     expect(new Set(allIds).size).toBe(51);
 
     const scoped = await service.rpc("community_people", { ...args, p_event_ids: [firstEvent.id], p_limit: 2 });
@@ -142,7 +171,7 @@ describe("database-side community queries", () => {
     const personId = randomUUID();
     const rows = [
       memberRow({
-        eventId: enabled.id, eventSlug: enabled.slug, personId, name: "Priya", line: "Building a postgres analytics tool",
+        eventId: enabled.id, eventSlug: enabled.slug, memberId: "00000000-0000-4000-8000-000000000011", personId, name: "Priya", line: "Building a postgres analytics tool",
         createdAt: "2026-11-01T00:00:00.000Z", directoryConsent: false, offers: ["databases"], seeks: ["backend"],
         speakOn: "Postgres scaling", speakTopics: ["databases"],
       }),
@@ -159,8 +188,12 @@ describe("database-side community queries", () => {
         eventId: disabled.id, eventSlug: disabled.slug, name: "Disabled event", line: "postgres backend",
         createdAt: "2026-11-01T00:00:03.000Z", directoryConsent: true, offers: ["databases"],
       }),
+      memberRow({
+        eventId: disabled.id, eventSlug: disabled.slug, memberId: "00000000-0000-4000-8000-000000000012", personId, name: "Priya latest disabled row", line: "postgres latest version",
+        createdAt: "2026-11-01T00:00:00.000Z", directoryConsent: false, offers: ["databases"], seeks: ["backend"],
+      }),
     ];
-    await insertMembers(rows);
+    await insertFixtureRows(community.id, rows);
 
     const query = "postgres";
     const allSearch = await service.rpc("search_members", {
@@ -172,6 +205,24 @@ describe("database-side community queries", () => {
     const pureResults = rankSearch(summarisePeople(rows), query).map((person) => person.member_id);
     expect(allSearchData.people.map((person) => person.member_id)).toEqual(pureResults);
     expect(allSearchData.people).toHaveLength(3);
+    expect(allSearchData.people.find((person) => person.person_id === personId)).toMatchObject({
+      member_id: rows[4].id,
+      name: "Priya latest disabled row",
+      events_count: 2,
+    });
+
+    // The pure ranker treats a query word as a substring; Postgres simple-config FTS tokenizes "postgres" as a whole lexeme.
+    // The SQL text-hit fallback must preserve that ranking behavior for partial-word searches.
+    const partialQuery = "post";
+    const partialSearch = await service.rpc("search_members", {
+      p_community: community.id, p_event_ids: null, p_query: partialQuery, p_tags: searchTags(partialQuery), p_limit: 50,
+      p_ai_enabled_only: false, p_exclude_ai_opt_out: false,
+    });
+    if (partialSearch.error) throw partialSearch.error;
+    const partialSearchData = partialSearch.data as { people: PersonSummary[] };
+    expect(partialSearchData.people.map((person) => person.member_id)).toEqual(
+      rankSearch(summarisePeople(rows), partialQuery).map((person) => person.member_id),
+    );
 
     const scopedSearch = await service.rpc("search_members", {
       p_community: community.id, p_event_ids: [enabled.id], p_query: query, p_tags: searchTags(query), p_limit: 1,
@@ -193,7 +244,7 @@ describe("database-side community queries", () => {
       id: randomUUID(), event_id: enabled.id, a_id: introA, b_id: introB, score: 0.75,
       reasons: [{ text: "Existing intro", quote: null, grounded: false }], created_at: "2026-11-01T00:01:00.000Z",
     });
-    if (introError) throw introError;
+    if (introError) failInsert("insert community query fixture intro", introError);
 
     const suggestions = await service.rpc("suggest_intro_candidates", {
       p_community: community.id, p_event_ids: [enabled.id], p_member_id: rows[0].id, p_limit: 1,

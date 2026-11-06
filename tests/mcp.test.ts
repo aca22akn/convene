@@ -31,6 +31,10 @@ describe("community memory", () => {
     expect(rankSearch(people, "zzz")).toEqual([]);
   });
 
+  it("keeps substring matching for partial words in profile text", () => {
+    expect(rankSearch(people, "post").map((person) => person.name)).toEqual(["Tom", "Priya"]);
+  });
+
   it("breaks equal ranking scores by person id for stable SQL parity", () => {
     const tied = [
       { ...people[0], person_id: "person-z", events_count: 2 },
