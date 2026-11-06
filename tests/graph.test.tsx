@@ -35,5 +35,6 @@ describe("Graph text alternative", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
     expect(list.className).not.toMatch(/sr-only/);
+    expect(list.getAttribute("tabindex")).toBe("0");
   });
 });

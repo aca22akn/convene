@@ -5,7 +5,7 @@ import { Brand } from "./Brand";
 import { privacyNotice, RETENTION_DAYS_DEFAULT } from "@/lib/privacy";
 
 export const inputCls =
-  "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none";
+  "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/60 focus:border-emerald-400 focus:outline-none";
 
 export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, retentionDays = RETENTION_DAYS_DEFAULT }: { slug: string; aiEnabled?: boolean; joiningClosed?: boolean; retentionDays?: number }) {
   const router = useRouter();
@@ -107,13 +107,13 @@ export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, reten
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-white/80">
-            X handle <span className="text-white/40">(optional)</span>
+            X handle <span className="text-white/60">(optional)</span>
           </span>
           <input className={inputCls} maxLength={40} value={xHandle} onChange={(e) => setXHandle(e.target.value)} placeholder="@handle" autoCapitalize="off" />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-white/80">
-            Happy to speak on <span className="text-white/40">(optional)</span>
+            Happy to speak on <span className="text-white/60">(optional)</span>
           </span>
           <input className={inputCls} maxLength={160} value={speakOn} onChange={(e) => setSpeakOn(e.target.value)} placeholder="Scaling Postgres without Kubernetes" />
         </label>

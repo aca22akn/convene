@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-import { JoinForm } from "@/components/JoinForm";
+import { inputCls, JoinForm } from "@/components/JoinForm";
 
 describe("JoinForm directory consent", () => {
   beforeEach(() => {
@@ -54,5 +54,12 @@ describe("JoinForm directory consent", () => {
     expect(screen.getByRole("status").textContent).toContain("The doors are closed");
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
     expect(screen.queryByRole("button", { name: /find my people/i })).toBeNull();
+  });
+
+  it("uses contrast-safe optional and placeholder text", () => {
+    render(<JoinForm slug="demo" />);
+
+    expect(inputCls).toContain("placeholder:text-white/60");
+    expect(screen.getAllByText("(optional)").every((element) => element.classList.contains("text-white/60"))).toBe(true);
   });
 });

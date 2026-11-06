@@ -18,10 +18,10 @@ class Boundary extends Component<{ fallback: React.ReactNode; children: React.Re
   }
 }
 
-function PlainList({ members, intros, id, className }: { members: LiveMember[]; intros: LiveIntro[]; id: string; className: string }) {
+function PlainList({ members, intros, id, className, focusable }: { members: LiveMember[]; intros: LiveIntro[]; id: string; className: string; focusable: boolean }) {
   const byId = new Map(members.map((m) => [m.id, m]));
   return (
-    <ul id={id} aria-label="Introduction list" className={`space-y-2 text-xl ${className}`}>
+    <ul id={id} aria-label="Introduction list" tabIndex={focusable ? 0 : undefined} className={`space-y-2 text-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-inset ${className}`}>
       {intros.map((i) => (
         <li key={`${i.a_id}-${i.b_id}`}>
           {byId.get(i.a_id)?.display_name ?? "?"} ↔ {byId.get(i.b_id)?.display_name ?? "?"} <span className="text-white/45">·</span> {i.headline}
@@ -65,7 +65,7 @@ export function Graph({ members, intros }: { members: LiveMember[]; intros: Live
   return (
     <div ref={ref} className="relative h-full w-full">
       <div role="img" aria-label={`${people}, ${introductions}`} aria-hidden={listVisible} className="h-full w-full">
-        <Boundary fallback={<PlainList id={listId} members={members} intros={intros} className="h-full overflow-y-auto p-4" />}>
+        <Boundary fallback={<PlainList id={listId} members={members} intros={intros} focusable className="h-full overflow-y-auto p-4" />}>
           <ForceGraph2D
             width={size.w}
             height={size.h}
@@ -105,6 +105,7 @@ export function Graph({ members, intros }: { members: LiveMember[]; intros: Live
         id={listId}
         members={members}
         intros={intros}
+        focusable={listVisible}
         className={listVisible ? "absolute inset-0 z-10 h-full overflow-y-auto bg-background p-4 pr-24" : "sr-only"}
       />
     </div>

@@ -15,6 +15,7 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
   const { data, error } = useLive<LiveView>(`/api/e/${slug}/live`, { mock: mock ? mockLive : undefined });
 
   const joinUrl = origin ? `${origin}/e/${slug}` : "";
+  const eventName = data?.event.name ?? "this event";
   const members = data?.members ?? [];
   const intros = [...(data?.intros ?? [])].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
   const byId = new Map(members.map((m) => [m.id, m]));
@@ -28,9 +29,9 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
         </div>
         <h1 className="mt-6 text-4xl font-bold leading-tight lg:text-5xl">Scan to meet the right people here</h1>
         <div className="mt-6 self-start rounded-3xl bg-white p-5">
-          {joinUrl ? <QRCodeSVG value={joinUrl} size={360} level="M" className="h-auto w-full max-w-[360px]" /> : <div className="h-[360px] w-[360px]" />}
+          {joinUrl ? <QRCodeSVG value={joinUrl} size={360} level="M" aria-label={`QR code to join ${eventName}`} className="h-auto w-full max-w-[360px]" /> : <div className="h-[360px] w-[360px]" />}
         </div>
-        <p className="mt-4 break-all font-mono text-xl text-white/70">{joinUrl.replace(/^https?:\/\//, "")}</p>
+        <a href={joinUrl} className="mt-4 break-all font-mono text-xl text-white/70 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">{joinUrl.replace(/^https?:\/\//, "")}</a>
         <div className="mt-auto pt-6">
           <p className="text-7xl font-bold tabular-nums text-emerald-400">{data?.count ?? 0}</p>
           <p className="text-2xl text-white/70">people here · {data?.intros.length ?? 0} intros made</p>
@@ -46,7 +47,7 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
           <h2 className="text-sm font-semibold uppercase tracking-widest text-white/50">Latest intros</h2>
           {intros.length === 0 && <p className="mt-3 text-2xl text-white/50">Intros appear here as people join.</p>}
           {intros.length > 3 && <p className="mt-1 text-sm text-white/55">{intros.length - 3} more below</p>}
-          <ul aria-label="Latest introductions" className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+          <ul aria-label="Latest introductions" tabIndex={0} className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-inset">
             {intros.map((i) => {
               const a = byId.get(i.a_id);
               const b = byId.get(i.b_id);

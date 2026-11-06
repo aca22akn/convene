@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
 
 const intros = Array.from({ length: 5 }, (_, index) => ({
   a_id: `a-${index}`,
@@ -20,10 +20,12 @@ vi.mock("@/lib/useLive", () => ({
     error: null,
   }),
 }));
-vi.mock("qrcode.react", () => ({ QRCodeSVG: () => <svg aria-label="Join QR code" /> }));
+vi.mock("qrcode.react", () => ({ QRCodeSVG: ({ "aria-label": label }: { "aria-label"?: string }) => <svg role="img" aria-label={label} /> }));
 vi.mock("@/components/Graph", () => ({ Graph: () => <div aria-label="Introduction graph" /> }));
 
 import { StageClient } from "@/components/StageClient";
+
+afterEach(() => cleanup());
 
 describe("StageClient latest introductions", () => {
   it("keeps every overflowed introduction in a labelled, scrollable list and announces how many continue below", () => {
@@ -33,5 +35,13 @@ describe("StageClient latest introductions", () => {
     expect(within(list).getAllByRole("listitem")).toHaveLength(5);
     expect(screen.getByText("2 more below")).toBeTruthy();
     expect(list.className).toMatch(/overflow-y-auto/);
+    expect(list.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("names the join QR code and supplies a text join link", () => {
+    render(<StageClient slug="overflow" mock={false} />);
+
+    expect(screen.getByRole("img", { name: "QR code to join Overflow demo" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /localhost:3000\/e\/overflow/i }).getAttribute("href")).toBe("http://localhost:3000/e/overflow");
   });
 });

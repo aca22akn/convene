@@ -17,4 +17,14 @@ describe("event join page mock mode", () => {
     expect(getEvent).not.toHaveBeenCalled();
     expect(page.props).toMatchObject({ slug: "demo", aiEnabled: false, joiningClosed: false });
   });
+
+  it("can render the closed-doors state in mock mode without a data lookup", async () => {
+    const page = await JoinPage({
+      params: Promise.resolve({ slug: "demo" }),
+      searchParams: Promise.resolve({ mock: "1", closed: "1" }),
+    });
+
+    expect(getEvent).not.toHaveBeenCalled();
+    expect(page.props).toMatchObject({ slug: "demo", joiningClosed: true });
+  });
 });
