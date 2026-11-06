@@ -33,6 +33,7 @@ describe("directory pagination", () => {
 
   it("loads the next database cursor page and appends it without duplicates", async () => {
     render(<DirectoryClient slug="makers" mock={false} />);
+    expect(useLive).toHaveBeenCalledWith("/api/c/makers", expect.objectContaining({ intervalMs: 30_000 }));
 
     fireEvent.click(screen.getByRole("button", { name: /load more/i }));
 

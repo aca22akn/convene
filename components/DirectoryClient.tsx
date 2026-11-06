@@ -7,7 +7,7 @@ import { Brand } from "./Brand";
 import { inputCls } from "./JoinForm";
 
 export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean }) {
-  const { data, error } = useLive<DirectoryView>(`/api/c/${slug}`, { mock: mock ? mockDirectory : undefined, intervalMs: 10000 });
+  const { data, error } = useLive<DirectoryView>(`/api/c/${slug}`, { mock: mock ? mockDirectory : undefined, intervalMs: 30_000 });
   const [filter, setFilter] = useState("");
   const [pageStateBySlug, setPageStateBySlug] = useState<Record<string, { pages: DirectoryView[]; loading: boolean; error: string | null }>>({});
   const pageState = pageStateBySlug[slug] ?? { pages: [], loading: false, error: null };

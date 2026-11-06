@@ -24,7 +24,7 @@ export async function eventMembers(eventId: string, withContact = false): Promis
   return (data ?? []) as unknown as Member[];
 }
 
-export const json = (body: unknown, status = 200) => Response.json(body, { status });
+export const json = (body: unknown, status = 200, headers?: HeadersInit) => Response.json(body, { status, headers });
 export const bad = (msg: string, status = 400) => Response.json({ error: msg }, { status });
 
 export function bearer(req: Request): string | null {

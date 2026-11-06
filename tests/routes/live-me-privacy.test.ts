@@ -95,5 +95,17 @@ describe("public live IDs cannot recover a member profile", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ event: { id: event.id } });
+    expect(response.headers.get("etag")).toBeTruthy();
+  });
+
+  it("returns 304 for an unchanged /me view with the current ETag", async () => {
+    const url = `http://localhost/api/e/demo/me?id=${encodeURIComponent(rawMemberIds[0])}`;
+    const first = await meGET(new Request(url), { params: Promise.resolve({ slug: "demo" }) });
+    const etag = first.headers.get("etag");
+    expect(etag).toBeTruthy();
+
+    const second = await meGET(new Request(url, { headers: { "if-none-match": etag! } }), { params: Promise.resolve({ slug: "demo" }) });
+    expect(second.status).toBe(304);
+    expect(await second.text()).toBe("");
   });
 });

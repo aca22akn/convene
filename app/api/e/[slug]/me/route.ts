@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { admin } from "@/lib/db";
 import { bad, getEvent, json, PUBLIC_MEMBER_COLS } from "@/lib/api";
 import type { Intro, Member, MeView } from "@/lib/types";
@@ -32,5 +33,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
       return o ? [{ member: { id: o.id, name: o.name, line: o.line, x_handle: o.x_handle ?? null }, reasons: i.reasons }] : [];
     }),
   };
-  return json(view);
+  const etag = `"${createHash("sha256").update(JSON.stringify(view)).digest("base64url")}"`;
+  const headers = { ETag: etag, "Cache-Control": "private, max-age=0, must-revalidate" };
+  const ifNoneMatch = req.headers.get("if-none-match");
+  const matchesEtag = ifNoneMatch
+    ?.split(",")
+    .some((candidate) => ["*", etag, `W/${etag}`].includes(candidate.trim()));
+  if (matchesEtag) return new Response(null, { status: 304, headers });
+  return json(view, 200, headers);
 }
