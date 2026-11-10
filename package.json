@@ -47,7 +47,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "ical.js": "^2.2.1",
-    "jsdom": "^29.1.1",
+    "jsdom": "^31.0.0",
     "supabase": "^3.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
