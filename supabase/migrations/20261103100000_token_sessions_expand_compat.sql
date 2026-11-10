@@ -1,14 +1,15 @@
 -- Reconcile installations that recorded the earlier token expand migration
 -- before its compatibility defaults and triggers were added.
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 alter table public.communities add column if not exists admin_token_hash text;
 alter table public.events add column if not exists admin_token_hash text;
 
 with candidate_communities as (
   select id,
-         encode(digest(admin_token, 'sha256'), 'hex') as token_hash,
-         row_number() over (partition by encode(digest(admin_token, 'sha256'), 'hex') order by id) as token_rank
+         encode(extensions.digest(admin_token, 'sha256'), 'hex') as token_hash,
+         row_number() over (partition by encode(extensions.digest(admin_token, 'sha256'), 'hex') order by id) as token_rank
   from public.communities
   where admin_token_hash is null and admin_token is not null
 )
@@ -31,8 +32,8 @@ where exists (
 
 with candidate_events as (
   select id,
-         encode(digest(admin_token, 'sha256'), 'hex') as token_hash,
-         row_number() over (partition by encode(digest(admin_token, 'sha256'), 'hex') order by id) as token_rank
+         encode(extensions.digest(admin_token, 'sha256'), 'hex') as token_hash,
+         row_number() over (partition by encode(extensions.digest(admin_token, 'sha256'), 'hex') order by id) as token_rank
   from public.events
   where admin_token_hash is null and admin_token is not null
 )
@@ -97,7 +98,7 @@ begin
     if new.admin_token_hash is not null then
       new.admin_token := null;
     elsif new.admin_token is not null then
-      new.admin_token_hash := encode(digest(new.admin_token, 'sha256'), 'hex');
+      new.admin_token_hash := encode(extensions.digest(new.admin_token, 'sha256'), 'hex');
     end if;
     return new;
   end if;
@@ -106,7 +107,7 @@ begin
     if new.admin_token is null then
       new.admin_token_hash := null;
     else
-      new.admin_token_hash := encode(digest(new.admin_token, 'sha256'), 'hex');
+      new.admin_token_hash := encode(extensions.digest(new.admin_token, 'sha256'), 'hex');
     end if;
   elsif tg_argv[0] = 'hash' then
     new.admin_token := null;

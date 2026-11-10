@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,11 +11,13 @@ const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 let currentStage = "status";
 
 function run(command, args, env, options = {}) {
+  const pipes = options.capture || options.input !== undefined;
   const result = spawnSync(command, args, {
     cwd: root,
     env,
-    stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit",
-    encoding: options.capture ? "utf8" : undefined,
+    stdio: pipes ? ["pipe", options.capture ? "pipe" : "inherit", options.capture ? "pipe" : "inherit"] : "inherit",
+    input: options.input,
+    encoding: pipes ? "utf8" : undefined,
     shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
@@ -38,6 +40,70 @@ function isLoopback(value) {
     return ["127.0.0.1", "localhost", "::1"].includes(new URL(value).hostname);
   } catch {
     return false;
+  }
+}
+
+function commandDiagnostic(result) {
+  return sanitizeTestDiagnostic(`${result.stdout ?? ""}\n${result.stderr ?? ""}`).trim().slice(0, 4000);
+}
+
+function databaseContainer(cliEnv) {
+  const projectConfig = readFileSync(path.join(root, "supabase", "config.toml"), "utf8");
+  const projectId = projectConfig.match(/^project_id\s*=\s*"([^"]+)"\s*$/m)?.[1];
+  if (!projectId) throw new Error("Unable to determine the local Supabase project id from supabase/config.toml.");
+
+  const containers = run(
+    "docker",
+    ["ps", "--filter", `name=supabase_db_${projectId}`, "--format", "{{.ID}} {{.Names}}"],
+    cliEnv,
+    { capture: true },
+  );
+  if (containers.status !== 0) {
+    const diagnostic = commandDiagnostic(containers);
+    throw new Error(`Could not find the local Supabase database container.${diagnostic ? `\n${diagnostic}` : ""}`);
+  }
+
+  const entries = (containers.stdout ?? "").trim().split(/\r?\n/).filter(Boolean);
+  const match = entries.find((entry) => entry.endsWith(` supabase_db_${projectId}`));
+  if (!match) throw new Error(`The local Supabase database container supabase_db_${projectId} is not running.`);
+  return match.split(/\s+/, 1)[0];
+}
+
+function executePostgresSql(container, sql, cliEnv) {
+  const result = run(
+    "docker",
+    ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"],
+    cliEnv,
+    { capture: true, input: sql },
+  );
+  if (result.status !== 0) {
+    const diagnostic = commandDiagnostic(result);
+    throw new Error(`Running a local PostgreSQL setup statement failed.${diagnostic ? `\n${diagnostic}` : ""}`);
+  }
+  return result;
+}
+
+function verifyWholeMigrationChainWithPublicOnlySearchPath(cliEnv) {
+  const container = databaseContainer(cliEnv);
+  let searchPathWasOverridden = false;
+  try {
+    executePostgresSql(container, "alter role postgres set search_path = public;", cliEnv);
+    searchPathWasOverridden = true;
+
+    const searchPath = executePostgresSql(container, "show search_path;", cliEnv);
+    if (!/^\s*search_path\s*\r?\n-+\r?\n\s*public\s*\r?\n/m.test(searchPath.stdout ?? "")) {
+      throw new Error("The migration role search_path was not exactly public.");
+    }
+
+    const reset = run(npx, ["supabase", "db", "reset", "--yes"], cliEnv, { capture: true });
+    if (reset.status !== 0) {
+      const diagnostic = commandDiagnostic(reset);
+      throw new Error(`Applying the full migration chain with search_path = public failed.${diagnostic ? `\n${diagnostic}` : ""}`);
+    }
+  } finally {
+    if (searchPathWasOverridden) {
+      executePostgresSql(container, "alter role postgres reset search_path;", cliEnv);
+    }
   }
 }
 
@@ -129,6 +195,9 @@ async function main() {
     if (!apiUrl || !isLoopback(apiUrl) || !anonKey || !serviceRoleKey) {
       throw new Error("Migration upgrade tests require loopback API, anon, and service-role values from local Supabase.");
     }
+
+    currentStage = "public-only migration chain";
+    verifyWholeMigrationChainWithPublicOnlySearchPath(cliEnv);
 
     currentStage = "reset";
     const baseVersion = "20261022190000";

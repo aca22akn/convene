@@ -17,9 +17,18 @@ The production build throws without `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET`. 
 
 ## Existing-installation rollout
 
+Before applying migrations, authenticate and link the intended Supabase project:
+
+```sh
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+```
+
+Then apply migrations with `npx supabase db push --remote`. Supabase CLI v3 targets the local stack by default without `--remote`.
+
 1. **Back up and export the production project.** Take a recoverable Supabase database export, record the currently deployed Vercel configuration, and confirm the secret-manager backups before making any schema or application change. Preserve the exact `PERSON_KEY_PEPPER` for the rehash command and every new app instance.
-2. **Prove migrations outside production first.** Apply the timestamped migrations with `npx supabase db push` to a throwaway Supabase project, configure its required secrets, and smoke-test creating an event, joining, organiser exchange, matching, and retention. Investigate any migration or policy failure there before touching the production project.
-3. **Migrate and rehash production while writes are paused.** Pause joins and imports, wait for old application instances to drain, and apply the same timestamped migrations to production with `npx supabase db push`. Keep writes paused. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people` for real. Complete both commands with the backed-up pepper **before deploying code that expects hashed keys**.
+2. **Prove migrations outside production first.** Apply the timestamped migrations with `npx supabase db push --remote` to a throwaway Supabase project, configure its required secrets, and smoke-test creating an event, joining, organiser exchange, matching, and retention. Investigate any migration or policy failure there before touching the production project.
+3. **Migrate and rehash production while writes are paused.** Pause joins and imports, wait for old application instances to drain, and apply the same timestamped migrations to production with `npx supabase db push --remote`. Keep writes paused. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people` for real. Complete both commands with the backed-up pepper **before deploying code that expects hashed keys**.
 
 ## Deploy the application
 

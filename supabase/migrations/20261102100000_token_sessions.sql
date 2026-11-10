@@ -1,16 +1,17 @@
 -- Expand token storage without removing the legacy plaintext columns yet.
 -- Existing organiser links remain valid while the application switches to hashes.
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 alter table communities add column if not exists admin_token_hash text;
 alter table events add column if not exists admin_token_hash text;
 
 update communities
-set admin_token_hash = encode(digest(admin_token, 'sha256'), 'hex')
+set admin_token_hash = encode(extensions.digest(admin_token, 'sha256'), 'hex')
 where admin_token_hash is null and admin_token is not null;
 
 update events
-set admin_token_hash = encode(digest(admin_token, 'sha256'), 'hex')
+set admin_token_hash = encode(extensions.digest(admin_token, 'sha256'), 'hex')
 where admin_token_hash is null and admin_token is not null;
 
 -- If legacy community credentials were reused, retain them on one deterministic community only.
@@ -66,7 +67,7 @@ begin
     if new.admin_token_hash is not null then
       new.admin_token := null;
     elsif new.admin_token is not null then
-      new.admin_token_hash := encode(digest(new.admin_token, 'sha256'), 'hex');
+      new.admin_token_hash := encode(extensions.digest(new.admin_token, 'sha256'), 'hex');
     end if;
     return new;
   end if;
@@ -75,7 +76,7 @@ begin
     if new.admin_token is null then
       new.admin_token_hash := null;
     else
-      new.admin_token_hash := encode(digest(new.admin_token, 'sha256'), 'hex');
+      new.admin_token_hash := encode(extensions.digest(new.admin_token, 'sha256'), 'hex');
     end if;
   elsif tg_argv[0] = 'hash' then
     new.admin_token := null;

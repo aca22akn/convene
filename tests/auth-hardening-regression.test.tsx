@@ -21,8 +21,10 @@ describe("auth hardening regressions", () => {
 
     expect(migration).toMatch(/revoke\s+all\s+privileges\s+on\s+table\s+(public\.)?access_tokens\s+from\s+anon\s*,\s*authenticated/i);
     expect(migration).toMatch(/grant\s+all\s+privileges\s+on\s+table\s+public\.access_tokens\s+to\s+service_role/i);
-    expect(migration).toMatch(/digest\(admin_token,\s*'sha256'\)/i);
-    expect(migration.match(/set admin_token_hash = encode\(digest\(admin_token, 'sha256'\), 'hex'\)/gi)).toHaveLength(2);
+    expect(migration).toMatch(/create schema if not exists extensions/i);
+    expect(migration).toMatch(/create extension if not exists pgcrypto with schema extensions/i);
+    expect(migration).toMatch(/extensions\.digest\(admin_token,\s*'sha256'\)/i);
+    expect(migration.match(/set admin_token_hash = encode\(extensions\.digest\(admin_token, 'sha256'\), 'hex'\)/gi)).toHaveLength(2);
     expect(migration).toMatch(/update events\s+as e\s+set admin_token_hash = null\s+where exists\s*\(\s*select 1 from communities as c where c\.admin_token_hash = e\.admin_token_hash\s*\)/i);
     expect(migration.match(/row_number\(\) over \(partition by admin_token_hash order by id\)/gi)).toHaveLength(2);
     expect(migration).not.toMatch(/alter table (public\.)?(communities|events) alter column admin_token drop default/i);
@@ -33,21 +35,34 @@ describe("auth hardening regressions", () => {
     expect(migration).toMatch(/create trigger events_admin_token_hash_legacy_update/i);
     expect(migration).toMatch(/create trigger events_admin_token_hash_new_update/i);
     expect(migration).toMatch(/if new\.admin_token_hash is not null then\s+new\.admin_token := null/i);
-    expect(migration).toMatch(/new\.admin_token_hash := encode\(digest\(new\.admin_token, 'sha256'\), 'hex'\)/i);
+    expect(migration).toMatch(/new\.admin_token_hash := encode\(extensions\.digest\(new\.admin_token, 'sha256'\), 'hex'\)/i);
   });
 
   it("repairs compatibility for installations that already applied the earlier token expand migration", () => {
     const migrationPath = path.join(process.cwd(), "supabase", "migrations", "20261103100000_token_sessions_expand_compat.sql");
     const migration = readFileSync(migrationPath, "utf8");
 
+    expect(migration).toMatch(/create schema if not exists extensions/i);
+    expect(migration).toMatch(/create extension if not exists pgcrypto with schema extensions/i);
     expect(migration).toMatch(/alter table public\.communities alter column admin_token set default replace\(gen_random_uuid\(\)::text, '-', ''\)/i);
     expect(migration).toMatch(/alter table public\.events alter column admin_token set default replace\(gen_random_uuid\(\)::text, '-', ''\)/i);
-    expect(migration.match(/row_number\(\) over \(partition by encode\(digest\(admin_token, 'sha256'\), 'hex'\) order by id\)/gi)).toHaveLength(2);
+    expect(migration.match(/row_number\(\) over \(partition by encode\(extensions\.digest\(admin_token, 'sha256'\), 'hex'\) order by id\)/gi)).toHaveLength(2);
     expect(migration.match(/candidate\.token_rank = 1/gi)).toHaveLength(2);
     expect(migration).toMatch(/create or replace function public\.sync_admin_token_hash\(\)/i);
     expect(migration).toMatch(/create trigger communities_admin_token_hash_insert/i);
     expect(migration).toMatch(/create trigger events_admin_token_hash_insert/i);
     expect(migration).toMatch(/revoke all privileges on table public\.access_tokens from anon, authenticated/i);
+  });
+
+  it("does not depend on search_path for pgcrypto migration calls", () => {
+    const migrationDir = path.join(process.cwd(), "supabase", "migrations");
+    const extensionFunctions = "digest|hmac|gen_random_bytes|crypt|gen_salt|encrypt|decrypt|pgp_sym_encrypt|pgp_sym_decrypt|pgp_pub_encrypt|pgp_pub_decrypt|armor|dearmor";
+    const unqualifiedCall = new RegExp(`(?:^|[^\\w.])(?:${extensionFunctions})\\s*\\(`, "gi");
+
+    for (const file of readdirSync(migrationDir).filter((name) => /\.sql(?:\.manual)?$/.test(name))) {
+      const migration = readFileSync(path.join(migrationDir, file), "utf8");
+      expect(migration.match(unqualifiedCall) ?? [], `${file} must schema-qualify pgcrypto calls`).toEqual([]);
+    }
   });
 
   it("keeps plaintext-token removal in a later contract migration", () => {
