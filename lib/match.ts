@@ -16,13 +16,40 @@ export const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${
 const canon = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
 
 /** Top-k partners per member by tag score (>0), unioned and deduped. weight = tagScore / max tagScore. */
-export function candidates(members: Tagged[], k = 8): Edge[] {
+export function candidates(members: Tagged[], k = 8, focusMemberId?: string): Edge[] {
   const byKey = new Map<string, Edge>();
   const sorted = [...members].sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
+  const seekersByTag = new Map<string, string[]>();
+  const offerersByTag = new Map<string, string[]>();
+  const topicsByTag = new Map<string, string[]>();
+  const byId = new Map(sorted.map((member) => [member.id, member]));
+
+  const addToIndex = (index: Map<string, string[]>, tag: string, id: string) => {
+    const ids = index.get(tag);
+    if (ids) ids.push(id);
+    else index.set(tag, [id]);
+  };
+
   for (const m of sorted) {
-    const scored = sorted
-      .filter((o) => o.id !== m.id)
-      .map((o) => ({ o, s: tagScore(m, o) }))
+    for (const tag of new Set(m.seeks)) addToIndex(seekersByTag, tag, m.id);
+    for (const tag of new Set(m.offers)) addToIndex(offerersByTag, tag, m.id);
+    for (const tag of new Set(m.topics)) addToIndex(topicsByTag, tag, m.id);
+  }
+
+  const sources = focusMemberId ? sorted.filter((member) => member.id === focusMemberId) : sorted;
+  for (const m of sources) {
+    const possible = new Set<string>();
+    const addMatches = (index: Map<string, string[]>, tags: string[]) => {
+      for (const tag of new Set(tags)) {
+        for (const id of index.get(tag) ?? []) if (id !== m.id) possible.add(id);
+      }
+    };
+    addMatches(seekersByTag, m.offers);
+    addMatches(offerersByTag, m.seeks);
+    addMatches(topicsByTag, m.topics);
+
+    const scored = [...possible]
+      .map((id) => ({ o: byId.get(id)!, s: tagScore(m, byId.get(id)!) }))
       .filter((x) => x.s > 0)
       .sort((p, q) => q.s - p.s || (p.o.id < q.o.id ? -1 : 1))
       .slice(0, k);

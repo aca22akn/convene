@@ -21,6 +21,7 @@ describe("parseLumaCsv", () => {
     expect(priya.guest_id).toBe("gst-sample001");
     expect(priya.contact).toBe("priya.raman@example.com");
     expect(priya.contact_consent).toBe(false);
+    expect(priya.directory_consent).toBe(false);
   });
 
   it("accepts guest_id and first/last name columns", () => {
@@ -28,6 +29,14 @@ describe("parseLumaCsv", () => {
       'g1,Ada,Lovelace,ada@example.com,approved,blue,"Building an analytics engine, need a backend engineer"\n';
     const r = parseLumaCsv(alt);
     expect(r.lineColumn).toBe("Tell us what you are working on");
-    expect(r.guests[0]).toMatchObject({ name: "Ada Lovelace", guest_id: "g1" });
+    expect(r.guests[0]).toMatchObject({ name: "Ada Lovelace", guest_id: "g1", source_guest_id: "luma:g1", source_row: 1 });
+  });
+
+  it("creates a stable source identity when Luma provides no guest id", () => {
+    const csv = 'name,What are you building and what do you need?\nAda Lovelace,"Building an analytics engine for climate teams"\n';
+    const first = parseLumaCsv(csv).guests[0]!;
+    const second = parseLumaCsv(csv).guests[0]!;
+    expect(first.source_guest_id).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(second.source_guest_id).toBe(first.source_guest_id);
   });
 });

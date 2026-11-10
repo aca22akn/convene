@@ -1,11 +1,15 @@
+import Link from "next/link";
 import { Brand } from "@/components/Brand";
 import { CreateEvent } from "@/components/CreateEvent";
+import { aiAvailable, aiProviderName } from "@/lib/grok";
 
 const STEPS = [
   ["Scan", "The organiser puts a QR on the screen. People scan it on arrival."],
   ["Write one line", "“Building X, need Y”, plus optional X handle, talk topic and contact."],
   ["Meet", "In about 10 seconds each phone shows up to 2 people to meet, with reasons that quote what both wrote."],
 ];
+
+export const instant = false;
 
 export default function Home() {
   return (
@@ -17,8 +21,8 @@ export default function Home() {
         WhatsApp.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
-        <a href="/e/demo/stage" className="rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-black">Open the live demo</a>
-        <a href="/e/demo" className="rounded-xl border border-white/15 px-5 py-3 font-semibold">Join the demo event</a>
+        <Link href="/e/demo/stage" className="rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-black">Open the live demo</Link>
+        <Link href="/e/demo" className="rounded-xl border border-white/15 px-5 py-3 font-semibold">Join the demo event</Link>
         <a href="https://github.com/aca22akn/convene" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white/70">Source (MIT)</a>
       </div>
 
@@ -32,7 +36,7 @@ export default function Home() {
         ))}
       </ol>
 
-      <CreateEvent />
+      <CreateEvent aiAvailable={aiAvailable()} aiProviderName={aiProviderName()} />
     </main>
   );
 }

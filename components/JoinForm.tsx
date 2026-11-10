@@ -1,28 +1,37 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Brand } from "./Brand";
+import { privacyNotice, RETENTION_DAYS_DEFAULT } from "@/lib/privacy";
 
 export const inputCls =
-  "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none";
+  "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-lg text-white placeholder:text-white/60 focus:border-emerald-400 focus:outline-none";
 
-export function JoinForm({ slug }: { slug: string }) {
+export function JoinForm({ slug, aiEnabled = false, joiningClosed = false, retentionDays = RETENTION_DAYS_DEFAULT, aiProviderName = "xAI" }: { slug: string; aiEnabled?: boolean; joiningClosed?: boolean; retentionDays?: number; aiProviderName?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [line, setLine] = useState("");
   const [xHandle, setXHandle] = useState("");
   const [speakOn, setSpeakOn] = useState("");
   const [consent, setConsent] = useState(false);
+  const [directoryConsent, setDirectoryConsent] = useState(false);
+  const [aiOptOut, setAiOptOut] = useState(false);
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<string | null>(null);
-
-  useEffect(() => {
+  const subscribeToStoredMember = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange);
+    return () => window.removeEventListener("storage", onStoreChange);
+  }, []);
+  const getStoredMember = useCallback(() => {
     try {
-      setExisting(localStorage.getItem(`convene:${slug}`));
-    } catch {}
+      return localStorage.getItem(`convene:${slug}`) ?? "";
+    } catch {
+      return "";
+    }
   }, [slug]);
+  const storedMember = useSyncExternalStore(subscribeToStoredMember, getStoredMember, () => null);
+  const existing = storedMember || null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,10 +48,15 @@ export function JoinForm({ slug }: { slug: string }) {
           speak_on: speakOn.trim() || null,
           contact: consent ? contact.trim() || null : null,
           contact_consent: consent && !!contact.trim(),
+          directory_consent: directoryConsent,
+          ai_opt_out: aiOptOut,
         }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body.member_id) throw new Error(body.error ?? `Something went wrong (${res.status})`);
+      if (!res.ok || !body.member_id) {
+        const message = body.error === "room_full" ? "This room is full" : body.error === "doors are closed" ? "The doors are closed" : body.error ?? `Something went wrong (${res.status})`;
+        throw new Error(message);
+      }
       try {
         localStorage.setItem(`convene:${slug}`, body.member_id);
       } catch {}
@@ -68,6 +82,12 @@ export function JoinForm({ slug }: { slug: string }) {
         </a>
       )}
 
+      {joiningClosed ? (
+        <section role="status" className="mt-6 rounded-xl border border-amber-300/30 bg-amber-300/10 p-5">
+          <h2 className="text-xl font-semibold text-amber-100">The doors are closed</h2>
+          <p className="mt-2 text-white/70">This event is no longer accepting new attendees.</p>
+        </section>
+      ) : (
       <form onSubmit={submit} className="mt-6 space-y-5">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-white/80">Name</span>
@@ -87,13 +107,13 @@ export function JoinForm({ slug }: { slug: string }) {
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-white/80">
-            X handle <span className="text-white/40">(optional)</span>
+            X handle <span className="text-white/60">(optional)</span>
           </span>
           <input className={inputCls} maxLength={40} value={xHandle} onChange={(e) => setXHandle(e.target.value)} placeholder="@handle" autoCapitalize="off" />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-white/80">
-            Happy to speak on <span className="text-white/40">(optional)</span>
+            Happy to speak on <span className="text-white/60">(optional)</span>
           </span>
           <input className={inputCls} maxLength={160} value={speakOn} onChange={(e) => setSpeakOn(e.target.value)} placeholder="Scaling Postgres without Kubernetes" />
         </label>
@@ -102,21 +122,45 @@ export function JoinForm({ slug }: { slug: string }) {
             <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
             <span className="text-white/80">Share my contact with the organiser so they can add me to the community WhatsApp</span>
           </label>
-          <input
-            className={`${inputCls} mt-3 disabled:opacity-40`}
-            disabled={!consent}
-            maxLength={120}
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            placeholder="Phone or email"
-          />
+          <label className="mt-3 block">
+            <span className="mb-1 block text-sm font-medium text-white/80">Phone or email</span>
+            <input
+              className={`${inputCls} disabled:opacity-40`}
+              disabled={!consent}
+              maxLength={120}
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              autoComplete="email"
+            />
+          </label>
         </div>
-        {error && <p className="rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
+        <div className="rounded-xl border border-white/10 p-4">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-5 w-5 accent-emerald-400"
+              checked={directoryConsent}
+              onChange={(e) => setDirectoryConsent(e.target.checked)}
+            />
+            <span className="text-white/80">Show me in the community directory</span>
+          </label>
+          <p className="mt-2 pl-8 text-sm text-white/55">If you opt in, the public directory shows your name, X handle, event line, talk topic, and the number of events where you opted in. Contact sharing is separate.</p>
+        </div>
+        {aiEnabled && (
+          <label className="flex items-start gap-3 rounded-xl border border-white/10 p-4">
+            <input type="checkbox" className="mt-1 h-5 w-5 accent-emerald-400" checked={aiOptOut} onChange={(e) => setAiOptOut(e.target.checked)} />
+            <span className="text-white/80">Keep my text away from external AI; I&apos;ll get basic matching only</span>
+          </label>
+        )}
+        {error && <p role="alert" className="rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
         <button disabled={busy} className="w-full rounded-xl bg-emerald-400 py-4 text-lg font-semibold text-black disabled:opacity-60">
           {busy ? "Joining…" : "Find my people"}
         </button>
-        <p className="text-center text-sm text-white/45">Nothing is sent to anyone. The organiser can delete all event data.</p>
+        <ul aria-label="Privacy notice" className="list-disc space-y-1 pl-5 text-sm text-white/55">
+          {privacyNotice(aiEnabled, retentionDays, aiProviderName).map((item) => <li key={item}>{item}</li>)}
+        </ul>
       </form>
+      )}
     </main>
   );
 }

@@ -40,59 +40,83 @@ Today almost every London community runs on **Luma for events and WhatsApp for t
 ## Self-host in 5 minutes
 
 1. **Fork / clone** this repo and `npm install`.
-2. **Supabase:** create a project, then either `npx supabase link --project-ref <ref> && npx supabase db push`, or paste [`supabase/migrations/20261022190000_init.sql`](supabase/migrations/20261022190000_init.sql) into the SQL editor.
-3. **Env:** `cp .env.example .env.local` and fill in the Supabase URL, anon key and service-role key. `XAI_API_KEY` is optional — without it Convene uses keyword extraction and tag-only matching.
+2. **Supabase:** create a project, link it with `npx supabase link --project-ref <ref>`, then apply every standard timestamped migration with `npx supabase db push`. For SQL-editor setup, apply all `*.sql` migrations in timestamp order; the initial migration alone is not a complete schema.
+3. **Env:** `cp .env.example .env.local` and set the Supabase URL, anon key, service-role key, a stable, random `PERSON_KEY_PEPPER`, and a separate random `PUBLIC_ID_SECRET`. Before the first Vercel deploy, set `PERSON_KEY_PEPPER` for both Production and Preview; the app throws during build without it. Keep the pepper unchanged and backed up securely: losing it makes person keys unrecoverable. Keep `PUBLIC_ID_SECRET` stable so live graph IDs remain stable. `AI_API_KEY` is optional (the legacy `XAI_API_KEY` fallback is supported) — without either, Convene uses keyword extraction and tag-only matching.
 4. **Try it locally:** `npm run seed` (loads 40 fictional sample members into event `demo`), `npm run dev`, open http://localhost:3000/e/demo/stage.
-5. **Deploy:** `vercel` (or import the repo in Vercel), add the same env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, `vercel --prod`.
+5. **Deploy:** Before the first Vercel deploy, set `PERSON_KEY_PEPPER` and `PUBLIC_ID_SECRET` for both **Production** and **Preview** in Project Settings → Environment Variables. The production build throws if `PERSON_KEY_PEPPER` is missing, and `PUBLIC_ID_SECRET` is required in production to generate opaque live IDs. Back up `PERSON_KEY_PEPPER` securely; losing it makes existing person keys unrecoverable. Set `CRON_SECRET` and `RETENTION_DAYS` (365 by default) so the daily retention cron can run. Then run `vercel` (or import the repo in Vercel), add the other env vars plus `NEXT_PUBLIC_BASE_URL=https://<your-app>.vercel.app`, and deploy with `vercel --prod`.
 
-Create an event from the home page; save the organiser link it shows (it contains the admin token).
+Rate limiting trusts only the `x-vercel-forwarded-for` header. Behind any other proxy, all clients share one `unknown` bucket capped at 2 requests per window. Self-hosters must deploy on Vercel or adapt `trustedIp()` in [`lib/ratelimit.ts`](lib/ratelimit.ts) for their trusted proxy.
+
+See the [deployment runbook](docs/DEPLOY-HARDENING.md) for secret setup and existing-install steps.
+
+Create an event from the home page; save the organiser link it shows. The event token is carried in the URL fragment, exchanged for a 12-hour server-side session, and never sent in the page request. A community token is shown separately when a community is created.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   P[Phone /e/slug] -- name + one line --> J[POST /api/e/slug/join]
-  J --> X[Extract: Grok structured output<br/>→ 40 fixed tags<br/>fallback: keywords]
+  J --> X[Extract: configured AI structured output<br/>→ 40 fixed tags<br/>fallback: keywords]
   X --> DB[(Supabase<br/>communities · events · people<br/>members · intros)]
   J -. after response .-> R[Recompute]
   R --> C1[Stage 1: tag score<br/>top 8 candidates]
-  C1 --> C2[Stage 2: one Grok rerank call<br/>0-10 + quoted reasons]
+  C1 --> C2[Stage 2: one configured-AI rerank call<br/>0-10 + quoted reasons]
   C2 --> G[Grounding check:<br/>quote ⊂ a line?]
   G --> B[Edmonds blossom ×2 rounds<br/>≤ 2 intros each]
-  B --> DB
-  DB -- realtime + 3s poll --> ME[/me: your 2 people/]
-  DB -- realtime + 3s poll --> ST[/stage: QR, graph, feed/]
+  B --> C[convene_commit_intros RPC<br/>advisory lock + capacity recheck]
+  C --> DB
+  C --> N[notifyEvent private broadcast]
+  N --> ME[/me: your 2 people/]
+  N --> ST[/stage: QR, graph, feed/]
+  ME -. 10s fallback poll .-> Server
+  ST -. 10s fallback poll .-> Server
   DB --> O[/organiser: needs vs offers,<br/>speaker inbox, vcf/csv, delete/]
+  T[Organiser token in URL fragment] --> E[POST /api/auth/exchange]
+  E --> S[Hashed 12h server-side session<br/>HttpOnly __Host-convene_session]
+  S --> O
   DB --> MCP[/api/mcp read-only tools/]
-  MCP --> A[Ask your community<br/>Grok Responses API + MCP]
+  MCP --> A[Ask your community<br/>configured AI Responses API + MCP]
 ```
 
 ## How matching works
 
-1. **Extraction.** Each line is mapped by Grok (structured output, enum-constrained) to a fixed vocabulary of 40 tags — `offers`, `seeks`, `topics`, `speak_topics`. 15s timeout, one retry, then a keyword fallback so the app works with no API key.
+1. **Extraction.** Each line is mapped by the configured AI provider (structured output, enum-constrained) to a fixed vocabulary of 40 tags — `offers`, `seeks`, `topics`, `speak_topics`. 15s timeout, one retry, then a keyword fallback so the app works with no API key.
 2. **Stage 1 — candidates.** `score(i,j) = 2·|offers_i ∩ seeks_j| + 2·|offers_j ∩ seeks_i| + 0.5·|topics_i ∩ topics_j|`; top 8 candidates per member.
-3. **Stage 2 — rerank.** One Grok call per new member scores each candidate 0–10 and gives two reasons, each with a `quote`.
+3. **Stage 2 — rerank.** One configured-provider call per new member scores each candidate 0–10 and gives two reasons, each with a `quote`.
 4. **Grounding.** A reason is kept only if its quote is an exact substring of one of the two members' lines (checked in code, [`lib/ground.ts`](lib/ground.ts)). A pair with zero grounded reasons gets rerank 0. Pairs without grounded reasons get a template reason built from shared tags.
 5. **Weight** = `0.4 · normalised tag score + 0.6 · rerank/10` (tag score only with no API key).
-6. **Assignment.** Maximum-weight matching (Edmonds' blossom) among people with spare capacity; remove those pairs and run again, so each person gets up to two intros. Existing intros never change, so a phone never "loses" a match; recompute is idempotent. A greedy version is kept for comparison.
+6. **Assignment and commit.** The pure planner computes a deterministic proposal for its input snapshot. `convene_commit_intros` then serializes concurrent plans with an advisory lock and rechecks duplicate-pair and two-intro capacity rules before committing. The integration suite exercises overlapping plans and sequential commits; recompute retries a dropped stale plan but never deletes or rewrites committed introductions. A greedy planner remains only for evaluation.
 
 ## Privacy
 
-- Nothing is ever sent to anyone. Convene shows intros on screens; it never emails, messages or posts.
-- Contact details are optional, only stored with an explicit consent tick, never exposed to the public API (column-level grants), and only exported in `contacts.vcf` to the organiser's token.
-- Luma-imported emails are stored as non-consenting and are not exported.
-- The organiser can delete all data for an event with one button. Data lives in the community's own Supabase.
-- Lines are sent to xAI for extraction and reranking when `XAI_API_KEY` is set; leave it empty to keep everything in your own infrastructure.
+<!-- PRIVACY:START -->
+- We collect your name, your one-line profile, optional X handle and speaker topic, and contact details only when you provide them.
+- Your name and your line appear to people you are matched with. The room screen shows your first name and a quote from your line.
+- Contact details are shared with the organiser only if you consent.
+- The public directory shows your profile only if you opt in.
+- The organiser can delete event data at any time.
+- Each event controls external AI with `ai_enabled`; when it is off, external AI is not called and matching uses keyword extraction and tags.
+- When `ai_enabled` is on, attendees can set `ai_opt_out`. Names, lines, X handles, and speaker topics from people who have not opted out may be processed by xAI for matching and Ask; opted-out people are excluded from AI prompts and receive basic matching only.
+- Event data is retained for 365 days, then deleted automatically.
+<!-- PRIVACY:END -->
+
+The full data inventory is in [`docs/DATA.md`](docs/DATA.md). The [/privacy](/privacy) page shows the event-specific AI-enabled and AI-disabled notices.
 
 ## MCP
 
-`/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
+`/api/mcp` is a Streamable HTTP MCP server. Auth: `Authorization: Bearer <community or event admin token>`. An event token sees that event only; a community token sees all events in that community. The organiser dashboard uses an HttpOnly 12-hour session cookie. The Ask box gives the configured AI provider a short-lived, read-only, scope-bound MCP token instead of the organiser token. Read-only tools: `search_members(query)`, `find_speakers(topic)`, `suggest_intros(member_id)`, `community_gaps()`. Contacts are never returned.
+
+Directory, search, speaker, gap, and suggestion reads use bounded service-role SQL functions. The public directory filters `directory_consent` in SQL and pages 50 people at a time with a stable keyset cursor; MCP and Ask keep their event and AI-opt-out scope in the database query.
 
 ```json
 { "mcpServers": { "convene": { "url": "https://<your-app>/api/mcp", "headers": { "Authorization": "Bearer <token>" } } } }
 ```
 
-The organiser page's **Ask your community** box calls the Grok Responses API with this server attached as an MCP tool.
+The organiser page's **Ask your community** box calls the configured provider's Responses API with this server attached as an MCP tool, then falls back to supplied context through chat completions if remote MCP is unsupported or fails.
+
+### Upgrading an existing installation
+
+Before deploying this version, configure the same persistent `PERSON_KEY_PEPPER` for the maintenance command and every app instance, and configure `PUBLIC_ID_SECRET` for Production and Preview. The production build throws when `PERSON_KEY_PEPPER` is missing. Back up the pepper securely: losing it makes existing person keys unrecoverable. Apply the expand migrations with `npx supabase db push`. Then pause joins and imports and wait for all old app instances to drain; keep writes paused through the rehash and deployment so no old instance can create another raw person key. Run `npm run rehash:people:dry-run`, review its counts, then run `npm run rehash:people`. After deploying the hash-based app with that same pepper, verify legacy organiser links through the exchange flow and confirm returning-member identity before resuming writes. Only then apply `supabase/migrations/20261102120000_token_sessions_contract.sql.manual` to remove the legacy plaintext token columns. Do not apply the manual contract before the hash-based app is deployed and verified.
 
 ## Evaluation
 
@@ -109,24 +133,32 @@ The organiser page's **Ask your community** box calls the Grok Responses API wit
 - Data: 40 fictional sample members, 23 `should_meet` and 6 `should_not_meet` human-reviewed pairs. Each person gets at most 2 intros.
 - Precision@2 = should_meet / (should_meet + should_not_meet) among produced intros that were labelled; recall = labelled should_meet pairs produced / all should_meet pairs.
 - Extraction: 40/40 by Grok (p50 964 ms). Join-to-intro latency (extraction + one rerank call + assignment): p50 4171 ms, p95 4633 ms. Grounded reasons (blossom, reranked): 88% — the rest fall back to tag templates.
-- Extraction model: grok-4.20-0309-non-reasoning; rerank model: grok-4.20-0309-non-reasoning. Run on 2026-10-22 19:39 UTC with `npm run eval`.
+- Provider: xAI; extraction model: grok-4.20-0309-non-reasoning; rerank model: grok-4.20-0309-non-reasoning. Run on 2026-10-22 19:39 UTC with `npm run eval`.
 <!-- EVAL:END -->
 
-Note: the keyword fallback was written while looking at this same sample data, so its scores are optimistic. Grok rows vary between runs.
+Note: the keyword fallback was written while looking at this same sample data, so its scores are optimistic. Provider rows vary between runs.
 
-## Known limits
+## Limits
 
-- **Latency.** Join-to-intro is typically ~10 s on Vercel with Grok (extraction + one rerank call); it degrades to keyword extraction and tag-only matching when Grok is slow or absent. The eval's latency figures below were measured locally, so they include network round-trips to xAI from a laptop.
-- **Blossom vs greedy.** Blossom maximises total match weight, which is not the same as matching the human labels: on the 40-person sample its recall is slightly below greedy's. We use it because it is the optimal assignment for the weights, and keep greedy for comparison.
-- **Concurrency.** Two people joining at the same instant can, rarely, push someone to 3 intros (no row lock); duplicate pairs are prevented by a unique constraint.
-- **Fixed vocabulary.** 40 tags cover the London tech-community lines we saw; niche needs fall back to Grok's reasons and the "topics" overlap.
-- **Demo room.** Sample members are fictional (`is_sample`). Once real people join, intros between two sample members stop counting toward capacity, so live joiners can still be matched to the best sample people.
-- **Auth.** Organiser access is a bearer token in the URL — fine for one-night events, not for long-lived sensitive communities. Rotate by editing `admin_token` in Supabase.
-- Lines are free text and shown publicly on the stage screen; tell people that before they type.
+- **Designed room and matching constraints.** The default room cap is 200 members (`MAX_MEMBERS_PER_EVENT`), and the commit RPC permits at most two committed introductions per real member.
+- **Measured planner cost.** `npm run bench` on 2026-11-06 (Windows 10.0.26200, x64, Intel Core i7-12700H) measured the median of nine warmed pure-planning passes. Database commit time is intentionally `CI-only`: this benchmark does not connect to Postgres.
+
+  | Members | Plan median (ms) | Pair evaluations | Database commit |
+  |---:|---:|---:|---|
+  | 50 | 0.85 | 144 | CI-only |
+  | 100 | 1.81 | 558 | CI-only |
+  | 200 | 5.17 | 2,200 | CI-only |
+  | 500 | 23.36 | 13,958 | CI-only |
+
+- **Default request and AI budgets.** 8 joins per 10 minutes per IP; 400 joins per hour per event; 5 event creations per hour per IP and 200 per day globally; 6 imports per hour per event; 5 Ask/MCP calls per minute and 20 per hour per scope; and 10 token exchanges per 10 minutes per IP. Missing client IPs use a two-request bucket. AI calls are limited to 3,000 per UTC day globally and 400 per event per UTC day. The values are environment-tunable; their defaults are listed in `.env.example`.
+
+## Development and CI
+
+Production builds are verified only in Linux CI because that matches our deployment environment. The build must check prerendering with runtime-dependent routes: the root layout calls Next.js `connection()` for the request-time CSP nonce. Windows builds are outside the verified environment.
 
 ## Tests
 
-`npm test` runs Vitest over matching (0/1/odd rooms, capacity, determinism, blossom vs greedy, idempotent recompute), grounding, extraction fallback, Luma CSV import, vCard/CSV export, community memory keys and MCP helpers. `npm run eval` reproduces the table below.
+`npm test` runs Vitest over matching (0/1/odd rooms, capacity, deterministic pure planning, blossom vs greedy, and commit-retry behaviour), grounding, extraction fallback, Luma CSV import, vCard/CSV export, community memory keys, routes, components, and MCP helpers. The Supabase integration suite separately checks the commit RPC under overlapping and sequential plans. `npm run eval` reproduces the table below.
 
 ## License
 

@@ -5,10 +5,13 @@ import { extract, pool } from "../lib/extract";
 import { keywordExtract } from "../lib/keywords";
 import { assignBlossom, assignGreedy, candidates, pairKey, tagScore, templateReasons } from "../lib/match";
 import { planIntros, rerankCandidates } from "../lib/recompute";
-import { RERANK_MODEL, rerank, rerankWeight, type RerankResult } from "../lib/rerank";
-import type { Edge, Member } from "../lib/types";
+import { rerank, rerankWeight, type RerankResult } from "../lib/rerank";
+import { aiAvailable, aiModel, aiProviderName, aiRerankModel } from "../lib/grok";
+import { JoinInput, TAGS, type Edge, type Member } from "../lib/types";
+import { isGrounded } from "../lib/ground";
 
 type Sample = { sample_id: number; name: string; line: string; speak_on?: string | null };
+type AdversarialSample = { id: string; name: string; line: string; speak_on?: string | null };
 type Pair = { a: number; b: number; label: string };
 
 const samples: Sample[] = JSON.parse(readFileSync("data/sample_members.json", "utf8")).members;
@@ -16,7 +19,8 @@ const pairs: Pair[] = JSON.parse(readFileSync("data/labelled_pairs.json", "utf8"
 const id = (sid: number) => `m${String(sid).padStart(3, "0")}`;
 const good = new Set(pairs.filter((p) => p.label === "should_meet").map((p) => pairKey(id(p.a), id(p.b))));
 const bad = new Set(pairs.filter((p) => p.label !== "should_meet").map((p) => pairKey(id(p.a), id(p.b))));
-const hasKey = !!process.env.XAI_API_KEY;
+const providerName = aiProviderName();
+const hasKey = aiAvailable();
 
 const base = (s: Sample, i: number): Omit<Member, "offers" | "seeks" | "topics" | "speak_topics"> => ({
   id: id(s.sample_id), event_id: "eval", name: s.name, line: s.line, speak_on: s.speak_on ?? null,
@@ -42,14 +46,18 @@ const quantile = (xs: number[], q: number) => {
 };
 
 async function main() {
-  console.log(`Eval on ${samples.length} sample members, ${good.size} should_meet / ${bad.size} should_not_meet pairs. Grok: ${hasKey ? "on" : "off"}`);
+  console.log(`Eval on ${samples.length} sample members, ${good.size} should_meet / ${bad.size} should_not_meet pairs. ${providerName}: ${hasKey ? "on" : "off"}`);
 
   // Extraction (Grok if a key is set, else keyword fallback); keyword-only also kept as the no-key baseline.
-  const ext = await pool(samples, 6, (s) => extract(s.line, s.speak_on));
+  const extractionResults = await pool(samples, 6, (s) => extract(s.line, s.speak_on));
+  const ext = extractionResults.map((result) => {
+    if (!result.ok) throw result.error;
+    return result.value;
+  });
   const members: Member[] = samples.map((s, i) => ({ ...base(s, i), ...ext[i] }));
   const kwMembers: Member[] = samples.map((s, i) => ({ ...base(s, i), ...keywordExtract(s.line, s.speak_on) }));
   const extractMs = ext.map((e) => e.ms);
-  const grokExtracted = ext.filter((e) => e.source === "grok").length;
+  const providerExtracted = ext.filter((e) => e.source === "ai").length;
 
   const rows: string[][] = [];
   const add = (assign: string, scoring: string, r: ReturnType<typeof score> | null, grounded = "—") =>
@@ -60,7 +68,7 @@ async function main() {
   add("blossom", "tags (keyword extraction, no API key)", score(assignBlossom(kwEdges)));
 
   const tagEdges = candidates(members);
-  const extLabel = grokExtracted ? "tags (Grok extraction)" : "tags (keyword extraction)";
+  const extLabel = providerExtracted ? `tags (${providerName} extraction)` : "tags (keyword extraction)";
   if (hasKey) {
     add("greedy", extLabel, score(assignGreedy(tagEdges)));
     add("blossom", extLabel, score(assignBlossom(tagEdges)));
@@ -72,7 +80,7 @@ async function main() {
   let groundedReasons = 0;
   let totalReasons = 0;
   if (hasKey) {
-    const reranks: (RerankResult | null)[] = await pool(members, 4, async (m, i) => {
+    const rerankResults = await pool(members, 4, async (m, i) => {
       const room = members.slice(0, i + 1);
       const cands = rerankCandidates(room, [], m.id);
       const t0 = Date.now();
@@ -82,6 +90,10 @@ async function main() {
       planIntros(room, [], m.id, rr);
       latencies[i] = ext[i].ms + rerankMs + (Date.now() - t1);
       return rr;
+    });
+    const reranks: (RerankResult | null)[] = rerankResults.map((result) => {
+      if (!result.ok) throw result.error;
+      return result.value;
     });
 
     // Full graph: stage-1 edges, with every reranked pair overriding its weight per the formula.
@@ -109,11 +121,11 @@ async function main() {
       const rs = xs.flatMap(reasonsOf);
       return pct(rs.filter((r) => r.grounded).length / Math.max(1, rs.length));
     };
-    add("greedy", "reranked (tags + Grok)", score(g), gr(g));
-    add("blossom", "reranked (tags + Grok)", score(bl), gr(bl));
+    add("greedy", `reranked (tags + ${providerName})`, score(g), gr(g));
+    add("blossom", `reranked (tags + ${providerName})`, score(bl), gr(bl));
   } else {
-    add("greedy", "reranked (tags + Grok)", null, "n/a");
-    add("blossom", "reranked (tags + Grok)", null, "n/a");
+    add("greedy", `reranked (tags + ${providerName})`, null, "n/a");
+    add("blossom", `reranked (tags + ${providerName})`, null, "n/a");
   }
 
   const header = ["Assignment", "Scoring", "Precision@2", "Recall", "should_not_meet produced", "Intros", "Grounded reasons"];
@@ -129,9 +141,9 @@ async function main() {
     `Data: ${samples.length} fictional sample members, ${good.size} \`should_meet\` and ${bad.size} \`should_not_meet\` human-reviewed pairs. Each person gets at most 2 intros.`,
     `Precision@2 = should_meet / (should_meet + should_not_meet) among produced intros that were labelled; recall = labelled should_meet pairs produced / all should_meet pairs.`,
     hasKey
-      ? `Extraction: ${grokExtracted}/${samples.length} by Grok (p50 ${Math.round(extP50)} ms). Join-to-intro latency (extraction + one rerank call + assignment): p50 ${Math.round(p50)} ms, p95 ${Math.round(p95)} ms. Grounded reasons (blossom, reranked): ${pct(groundedReasons / Math.max(1, totalReasons))} — the rest fall back to tag templates.`
-      : `No XAI_API_KEY: reranked rows and latency are n/a.`,
-    `Extraction model: ${process.env.XAI_MODEL || "grok-4.7"}; rerank model: ${RERANK_MODEL}. Run on ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC with \`npm run eval\`.`,
+      ? `Extraction: ${providerExtracted}/${samples.length} by ${providerName} (p50 ${Math.round(extP50)} ms). Join-to-intro latency (extraction + one rerank call + assignment): p50 ${Math.round(p50)} ms, p95 ${Math.round(p95)} ms. Grounded reasons (blossom, reranked): ${pct(groundedReasons / Math.max(1, totalReasons))} — the rest fall back to tag templates.`
+      : `No ${providerName} API key: reranked rows and latency are n/a.`,
+    `Provider: ${providerName}; extraction model: ${aiModel()}; rerank model: ${aiRerankModel()}. Run on ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC with \`npm run eval\`.`,
   ];
   const block = `${table}\n\n${notes.map((n) => `- ${n}`).join("\n")}`;
   console.log("\n" + block + "\n");
@@ -146,7 +158,57 @@ async function main() {
   console.log("README.md updated.");
 }
 
-main().catch((e) => {
+async function adversarialMain() {
+  if (!hasKey) throw new Error(`Adversarial live eval requires AI_API_KEY or XAI_API_KEY for ${providerName}; no model calls were made.`);
+  const fixture: { members: AdversarialSample[] } = JSON.parse(readFileSync("data/adversarial_members.json", "utf8"));
+  const valid = fixture.members.filter((sample) => JoinInput.safeParse({ name: sample.name, line: sample.line, speak_on: sample.speak_on }).success);
+  const overlong = fixture.members.length - valid.length;
+  const extracted = await pool(valid, 4, (sample) => extract(sample.line, sample.speak_on));
+  const profiles: Member[] = extracted.map((result, index) => {
+    if (!result.ok) throw result.error;
+    const sample = valid[index]!;
+    return {
+      id: `adversarial-${sample.id}`,
+      event_id: "adversarial-eval",
+      name: sample.name,
+      line: sample.line,
+      speak_on: sample.speak_on ?? null,
+      contact_consent: false,
+      offers: result.value.offers,
+      seeks: result.value.seeks,
+      topics: result.value.topics,
+      speak_topics: result.value.speak_topics,
+      is_sample: false,
+      created_at: new Date(Date.UTC(2026, 10, 4, 12, 0, index)).toISOString(),
+    };
+  });
+  let tagsOutsideEnum = 0;
+  for (const profile of profiles) {
+    tagsOutsideEnum += [...profile.offers, ...profile.seeks, ...profile.topics, ...profile.speak_topics]
+      .filter((tag) => !(TAGS as readonly string[]).includes(tag)).length;
+  }
+
+  let outOfRangeScores = 0;
+  let ungroundedReasonsKept = 0;
+  const subject = profiles[0];
+  if (subject) {
+    const scored = await pool(profiles.slice(1), 4, (candidate) => rerank(subject, [candidate]));
+    for (let index = 0; index < scored.length; index += 1) {
+      const result = scored[index]!;
+      if (!result.ok) throw result.error;
+      for (const item of result.value?.values() ?? []) {
+        if (!Number.isInteger(item.score) || item.score < 0 || item.score > 10) outOfRangeScores += 1;
+        const candidate = profiles[index + 1]!;
+        ungroundedReasonsKept += item.reasons.filter((reason) => !isGrounded(reason.quote, subject, candidate)).length;
+      }
+    }
+  }
+  const report = { mode: "adversarial", members: fixture.members.length, overlongRejected: overlong, tagsOutsideEnum, outOfRangeScores, ungroundedReasonsKept };
+  console.log(JSON.stringify(report, null, 2));
+  if (tagsOutsideEnum || outOfRangeScores || ungroundedReasonsKept || overlong < 1) process.exitCode = 1;
+}
+
+(process.argv.includes("--adversarial") ? adversarialMain : main).call(null).catch((e) => {
   console.error(e);
   process.exit(1);
 });

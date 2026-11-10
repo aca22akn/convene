@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { mockOrganiser, type OrganiserView } from "@/lib/mocks";
 import { useLive } from "@/lib/useLive";
 import { tagRows, xUrl } from "@/lib/ui";
@@ -15,18 +15,91 @@ const EXAMPLES = [
   "Who has come to more than one event and is looking for a cofounder?",
 ];
 
-export function OrganiserClient({ slug, token, mock }: { slug: string; token: string; mock: boolean }) {
-  const q = `token=${encodeURIComponent(token)}`;
-  const { data, error, refetch } = useLive<OrganiserView>(token || mock ? `/api/e/${slug}/organiser?${q}` : null, {
+export function OrganiserClient({ slug, mock, aiProviderName = "xAI" }: { slug: string; mock: boolean; aiProviderName?: string }) {
+  const [manualToken, setManualToken] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [joiningBusy, setJoiningBusy] = useState(false);
+  const [joiningError, setJoiningError] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !new URLSearchParams(window.location.hash.slice(1)).has("t");
+  });
+  const { data, error, refetch } = useLive<OrganiserView>(authReady || mock ? `/api/e/${slug}/organiser` : null, {
     mock: mock ? mockOrganiser : undefined,
     intervalMs: 5000,
   });
 
-  if (!token && !mock) {
+  const exchangeToken = useCallback(async (token: string) => {
+    if (!token.trim()) return;
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const response = await fetch("/api/auth/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: token.trim() }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? `Error ${response.status}`);
+      setManualToken("");
+      setAuthReady(true);
+      await refetch();
+    } catch (e) {
+      setAuthError(e instanceof Error ? e.message : "Could not start organiser session");
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [refetch]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const fragmentToken = params.get("t");
+    if (!fragmentToken) return;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    const timer = window.setTimeout(() => { void exchangeToken(fragmentToken); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [exchangeToken]);
+
+  async function logout() {
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    if (!response.ok) setAuthError("Could not end the organiser session");
+    else window.location.reload();
+  }
+
+  async function setJoiningClosed(joins_closed: boolean) {
+    setJoiningBusy(true);
+    setJoiningError(null);
+    try {
+      const response = await fetch(`/api/e/${slug}/organiser`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ joins_closed }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? `Error ${response.status}`);
+      await refetch();
+    } catch (e) {
+      setJoiningError(e instanceof Error ? e.message : "Could not update joining status");
+    } finally {
+      setJoiningBusy(false);
+    }
+  }
+
+  if (!mock && !data) {
     return (
       <main className="mx-auto max-w-2xl p-8">
         <Brand />
-        <p className="mt-8 text-xl">This page needs the organiser link with its token (…/organiser?token=…).</p>
+        <h1 className="mt-8 text-xl">Organiser access</h1>
+        <p className="mt-2 text-white/70">Open your saved organiser link or paste an event or community token to start a 12-hour session.</p>
+        <form className="mt-4 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void exchangeToken(manualToken); }}>
+          <label htmlFor="organiser-token">Organiser token</label>
+          <input id="organiser-token" className={inputCls} autoComplete="off" value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
+          <button disabled={authBusy || !manualToken.trim()} className="rounded-xl bg-emerald-400 px-4 py-3 font-semibold text-black disabled:opacity-50">
+            {authBusy ? "Securing session…" : "Continue"}
+          </button>
+        </form>
+        {(authError || (error && !data)) && <p role="alert" className="mt-3 text-red-300">{authError ?? error}</p>}
       </main>
     );
   }
@@ -49,6 +122,27 @@ export function OrganiserClient({ slug, token, mock }: { slug: string; token: st
       </header>
       {error && !data && <p className="mt-4 rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{error}</p>}
 
+      {!mock && data && (
+        <section className={`${card} mt-6 flex flex-wrap items-center justify-between gap-4`}>
+          <div>
+            <h2 className="font-semibold">Attendee joining</h2>
+            <p className="mt-1 text-sm text-white/60">{data.event.joins_closed ? "The doors are closed. New attendees cannot join." : "The doors are open. Attendees can join this event."}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-label="Close joining"
+            aria-checked={data.event.joins_closed === true}
+            disabled={joiningBusy}
+            onClick={() => void setJoiningClosed(data.event.joins_closed !== true)}
+            className={`relative h-8 w-14 rounded-full transition-colors disabled:opacity-50 ${data.event.joins_closed ? "bg-amber-400" : "bg-white/20"}`}
+          >
+            <span aria-hidden="true" className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-transform ${data.event.joins_closed ? "translate-x-7" : "translate-x-1"}`} />
+          </button>
+        </section>
+      )}
+      {joiningError && <p role="alert" className="mt-3 rounded-lg bg-red-500/15 px-4 py-2 text-red-200">{joiningError}</p>}
+
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Members" value={data?.members.length ?? 0} />
         <Stat label="Intros" value={data?.intros.length ?? 0} />
@@ -56,7 +150,8 @@ export function OrganiserClient({ slug, token, mock }: { slug: string; token: st
         <Stat label="Shared contact" value={data?.members.filter((m) => m.contact_consent).length ?? 0} />
       </div>
 
-      <AskBox community={community} token={token} />
+      <div className="mt-6 flex justify-end"><button type="button" onClick={() => void logout()} className={btn}>End organiser session</button></div>
+      <AskBox community={community} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className={card}>
@@ -70,8 +165,18 @@ export function OrganiserClient({ slug, token, mock }: { slug: string; token: st
               <li key={r.tag} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
                 <span className="truncate text-white/80">{r.tag}</span>
                 <div className="space-y-1">
-                  <div className="h-2.5 rounded-full bg-rose-400" style={{ width: `${(r.needs / max) * 100}%`, minWidth: r.needs ? 6 : 0 }} title={`${r.needs} need`} />
-                  <div className="h-2.5 rounded-full bg-emerald-400" style={{ width: `${(r.offers / max) * 100}%`, minWidth: r.offers ? 6 : 0 }} title={`${r.offers} offer`} />
+                  <progress
+                    className="h-2.5 w-full appearance-none overflow-hidden rounded-full bg-white/10 [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-rose-400 [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-white/10 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-rose-400"
+                    max={max}
+                    value={r.needs}
+                    aria-label={`${r.needs} need`}
+                  />
+                  <progress
+                    className="h-2.5 w-full appearance-none overflow-hidden rounded-full bg-white/10 [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-emerald-400 [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-white/10 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-emerald-400"
+                    max={max}
+                    value={r.offers}
+                    aria-label={`${r.offers} offer`}
+                  />
                 </div>
               </li>
             ))}
@@ -114,14 +219,14 @@ export function OrganiserClient({ slug, token, mock }: { slug: string; token: st
           <p className="text-sm text-white/55">contacts.vcf contains only people who ticked consent. Import it on your phone, then add them to WhatsApp.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {["contacts.vcf", "members.csv", "intros.csv"].map((f) => (
-              <a key={f} className={btn} href={`/api/e/${slug}/export/${f}?${q}`}>⬇ {f}</a>
+              <a key={f} className={btn} href={`/api/e/${slug}/export/${f}`}>⬇ {f}</a>
             ))}
           </div>
         </section>
-        <ImportBox slug={slug} q={q} onDone={refetch} />
+        <ImportBox slug={slug} aiEnabled={data?.event.ai_enabled === true} aiProviderName={aiProviderName} onDone={refetch} />
       </div>
 
-      <DangerZone slug={slug} q={q} />
+      <DangerZone slug={slug} />
     </main>
   );
 }
@@ -135,7 +240,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function AskBox({ community, token }: { community?: string | null; token: string }) {
+function AskBox({ community }: { community?: string | null }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -149,7 +254,7 @@ function AskBox({ community, token }: { community?: string | null; token: string
       const res = await fetch(`/api/c/${community}/ask`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token, question: qText }),
+        body: JSON.stringify({ question: qText }),
       });
       const body = await res.json().catch(() => ({}));
       setAnswer(res.ok ? body.answer ?? "(no answer)" : body.error ?? `Error ${res.status}`);
@@ -163,15 +268,16 @@ function AskBox({ community, token }: { community?: string | null; token: string
   return (
     <section className={`${card} mt-6`}>
       <h2 className="text-lg font-semibold">Ask your community</h2>
-      <p className="text-sm text-white/55">Grok answers using read-only tools over your members across all events (the same MCP server any agent can use).</p>
+      <p className="text-sm text-white/55">Grok answers with read-only tools scoped to the access you used: this event for an event token, or all community events for a community token.</p>
+      <label htmlFor="community-question" className="mt-3 block text-sm font-medium text-white/80">Question</label>
       <form
-        className="mt-3 flex flex-col gap-2 sm:flex-row"
+        className="mt-1 flex flex-col gap-2 sm:flex-row"
         onSubmit={(e) => {
           e.preventDefault();
           ask(question);
         }}
       >
-        <input className={inputCls} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Who could speak about Postgres next month?" />
+        <input id="community-question" className={inputCls} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Who could speak about Postgres next month?" />
         <button disabled={busy || !community} className="rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-black disabled:opacity-50">
           {busy ? "Thinking…" : "Ask"}
         </button>
@@ -188,18 +294,23 @@ function AskBox({ community, token }: { community?: string | null; token: string
   );
 }
 
-function ImportBox({ slug, q, onDone }: { slug: string; q: string; onDone: () => void }) {
+function ImportBox({ slug, aiEnabled, aiProviderName, onDone }: { slug: string; aiEnabled: boolean; aiProviderName: string; onDone: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   async function onFile(f: File | undefined) {
     if (!f) return;
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/e/${slug}/import?${q}`, { method: "POST", headers: { "content-type": "text/csv" }, body: await f.text() });
+      const res = await fetch(`/api/e/${slug}/import`, {
+        method: "POST",
+        headers: { "content-type": "text/csv", "x-ai-processing-acknowledged": acknowledged ? "true" : "false" },
+        body: await f.text(),
+      });
       const body = await res.json().catch(() => ({}));
-      setMsg(res.ok ? `Imported ${body.imported ?? 0} guests.` : body.error ?? `Error ${res.status}`);
+      setMsg(res.ok ? `Imported ${body.imported ?? 0} guests${body.ai_used ? ` using ${aiProviderName}` : " with keyword matching"}.` : body.error ?? `Error ${res.status}`);
       onDone();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Upload failed");
@@ -212,18 +323,25 @@ function ImportBox({ slug, q, onDone }: { slug: string; q: string; onDone: () =>
     <section className={card}>
       <h2 className="text-lg font-semibold">Import Luma guests</h2>
       <p className="text-sm text-white/55">Upload the guest CSV export. The first free-text registration answer becomes each person&apos;s line.</p>
-      <input type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} className="mt-3 block text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
+      {aiEnabled && (
+        <label className="mt-3 flex items-start gap-3 text-sm text-white/75">
+          <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
+          <span>I confirm attendees were told their answers are analysed by {aiProviderName}.</span>
+        </label>
+      )}
+      <label htmlFor="luma-csv" className="mt-3 block text-sm font-medium text-white/80">Luma CSV export</label>
+      <input id="luma-csv" type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} className="mt-1 block text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
       {msg && <p className="mt-2 text-white/80">{msg}</p>}
     </section>
   );
 }
 
-function DangerZone({ slug, q }: { slug: string; q: string }) {
+function DangerZone({ slug }: { slug: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   async function del() {
     const typed = window.prompt('This permanently deletes every member, intro and contact for this event. Type "delete" to confirm.');
     if (typed !== "delete") return;
-    const res = await fetch(`/api/e/${slug}?${q}`, { method: "DELETE" });
+    const res = await fetch(`/api/e/${slug}`, { method: "DELETE" });
     const body = await res.json().catch(() => ({}));
     setMsg(res.ok ? "All event data deleted." : body.error ?? `Error ${res.status}`);
   }

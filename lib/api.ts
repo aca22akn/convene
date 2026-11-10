@@ -2,36 +2,16 @@
 import { admin } from "./db";
 import type { Member } from "./types";
 
-export type EventRow = { id: string; slug: string; name: string; community_id: string | null; admin_token: string; created_at: string };
+export type EventRow = { id: string; slug: string; name: string; community_id: string | null; created_at: string; member_cap: number; ai_enabled?: boolean; joins_closed?: boolean };
 
 /** Columns safe to send to any browser (no contact, no tokens). */
 export const PUBLIC_MEMBER_COLS =
   "id,event_id,person_id,name,line,x_handle,speak_on,contact_consent,offers,seeks,topics,speak_topics,is_sample,created_at";
 
 export async function getEvent(slug: string): Promise<EventRow | null> {
-  const { data } = await admin().from("events").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await admin().from("events").select("id,slug,name,community_id,created_at,member_cap,ai_enabled,joins_closed").eq("slug", slug).maybeSingle();
+  if (error) throw error;
   return (data as EventRow) ?? null;
-}
-
-/** Token is valid for an event if it equals the event's token or its community's token. */
-export async function tokenOk(ev: EventRow, token: string | null | undefined): Promise<boolean> {
-  if (!token) return false;
-  if (token === ev.admin_token) return true;
-  if (!ev.community_id) return false;
-  const { data } = await admin().from("communities").select("admin_token").eq("id", ev.community_id).maybeSingle();
-  return !!data && data.admin_token === token;
-}
-
-/** Resolve an admin token (community or event) to the community it governs. */
-export async function communityForToken(token: string | null | undefined): Promise<{ id: string; slug: string; name: string } | null> {
-  if (!token) return null;
-  const db = admin();
-  const { data: c } = await db.from("communities").select("id,slug,name").eq("admin_token", token).maybeSingle();
-  if (c) return c;
-  const { data: e } = await db.from("events").select("community_id").eq("admin_token", token).maybeSingle();
-  if (!e?.community_id) return null;
-  const { data: c2 } = await db.from("communities").select("id,slug,name").eq("id", e.community_id).maybeSingle();
-  return c2 ?? null;
 }
 
 export async function eventMembers(eventId: string, withContact = false): Promise<Member[]> {
@@ -44,7 +24,7 @@ export async function eventMembers(eventId: string, withContact = false): Promis
   return (data ?? []) as unknown as Member[];
 }
 
-export const json = (body: unknown, status = 200) => Response.json(body, { status });
+export const json = (body: unknown, status = 200, headers?: HeadersInit) => Response.json(body, { status, headers });
 export const bad = (msg: string, status = 400) => Response.json({ error: msg }, { status });
 
 export function bearer(req: Request): string | null {

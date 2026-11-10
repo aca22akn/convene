@@ -16,11 +16,13 @@ export type Tag = z.infer<typeof Tag>;
 export const JoinInput = z.object({
   name: z.string().trim().min(1).max(80),
   line: z.string().trim().min(3).max(280),
-  x_handle: z.string().trim().max(40).optional().nullable(),
+  x_handle: z.string().trim().regex(/^@?[A-Za-z0-9_]{1,15}$/).optional().nullable(),
   speak_on: z.string().trim().max(160).optional().nullable(),
   contact: z.string().trim().max(120).optional().nullable(),
   contact_consent: z.boolean().default(false),
-});
+  directory_consent: z.boolean().default(false),
+  ai_opt_out: z.boolean().default(false),
+}).strict();
 export type JoinInput = z.infer<typeof JoinInput>;
 
 /** Output of extraction: every array only contains tags from TAGS. */
@@ -61,6 +63,8 @@ export const Member = z.object({
   speak_on: z.string().nullable().optional(),
   contact: z.string().nullable().optional(),
   contact_consent: z.boolean().default(false),
+  directory_consent: z.boolean().optional(),
+  ai_opt_out: z.boolean().optional(),
   offers: z.array(Tag),
   seeks: z.array(Tag),
   topics: z.array(Tag),
@@ -101,12 +105,13 @@ export type Edge = {
 
 /** /me payload */
 export type MeView = {
+  event: { id: string; member_count: number };
   member: Pick<Member, "id" | "name" | "line">;
   matches: { member: Pick<Member, "id" | "name" | "line" | "x_handle">; reasons: Reason[] }[];
 };
 
 // ---- Function contracts (implemented by lanes) ----
-// lib/extract.ts   export async function extract(line: string, speak_on?: string | null): Promise<Extraction & { source: "grok" | "keywords"; ms: number }>
+// lib/extract.ts   export async function extract(line: string, speak_on?: string | null): Promise<Extraction & { source: "ai" | "keywords"; ms: number }>
 // lib/keywords.ts  export function keywordExtract(line: string, speak_on?: string | null): Extraction
 // lib/match.ts     export function tagScore(i: Member, j: Member): number
 //                  export function candidates(members: Member[], k?: number): Edge[]          // top-k per member, deduped

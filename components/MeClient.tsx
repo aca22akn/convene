@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { MeView } from "@/lib/types";
 import { mockMe } from "@/lib/mocks";
 import { useLive } from "@/lib/useLive";
@@ -8,18 +8,22 @@ import { Brand } from "./Brand";
 import { Quoted } from "./Quoted";
 
 export function MeClient({ slug, id: idProp, mock }: { slug: string; id: string | null; mock: boolean }) {
-  const [id, setId] = useState<string | null>(idProp);
-  const [checked, setChecked] = useState(!!idProp);
-
-  useEffect(() => {
-    if (idProp) return;
+  const subscribeToStoredId = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange);
+    return () => window.removeEventListener("storage", onStoreChange);
+  }, []);
+  const getStoredId = useCallback(() => {
     try {
-      setId(localStorage.getItem(`convene:${slug}`));
-    } catch {}
-    setChecked(true);
-  }, [idProp, slug]);
+      return localStorage.getItem(`convene:${slug}`) ?? "";
+    } catch {
+      return "";
+    }
+  }, [slug]);
+  const storedId = useSyncExternalStore(subscribeToStoredId, getStoredId, () => null);
+  const id = idProp ?? (storedId || null);
+  const checked = idProp !== null || storedId !== null;
 
-  const { data, error } = useLive<MeView>(id ? `/api/e/${slug}/me?id=${encodeURIComponent(id)}` : null, {
+  const { data, error, refetch } = useLive<MeView>(id ? `/api/e/${slug}/me?id=${encodeURIComponent(id)}` : null, {
     mock: mock ? mockMe : undefined,
   });
 
@@ -48,16 +52,32 @@ export function MeClient({ slug, id: idProp, mock }: { slug: string; id: string 
 
       <h1 className="mt-8 text-3xl font-bold">People to meet</h1>
 
-      {matches.length === 0 && (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-5">
+      {!data && !error && (
+        <div role="status" aria-label="Loading matches" className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-5">
           <span className="relative flex h-4 w-4 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span aria-hidden="true" className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-4 w-4 rounded-full bg-emerald-400" />
           </span>
-          <span className="text-lg">Finding your people… this page updates by itself.</span>
+          <span className="text-lg">Loading your matches…</span>
         </div>
       )}
-      {error && !data && <p className="mt-4 text-sm text-red-300">{error}</p>}
+      {error && !data && (
+        <section role="alert" className="mt-6 rounded-2xl border border-red-400/30 bg-red-500/15 p-5 text-red-100">
+          <p>We couldn&apos;t load your matches: {error}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 rounded-lg border border-red-200/50 px-4 py-2 font-medium text-red-50 hover:bg-red-100/10">Retry</button>
+        </section>
+      )}
+      {data && matches.length === 0 && (
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
+          <p className="text-lg font-medium">No introductions yet.</p>
+          <p className="mt-2 text-white/75">This page updates as people join.</p>
+          <p className="mt-1 text-white/75">
+            {data.event.member_count < 3
+              ? "This is still a small room, so more introductions can appear as attendees arrive."
+              : "The room has enough people for introductions; we&apos;ll show new ones as they are made."}
+          </p>
+        </section>
+      )}
 
       <div className="mt-6 space-y-5">
         {matches.map((m) => {
