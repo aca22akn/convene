@@ -5,9 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { createIsolatedTestEnv, sanitizeTestDiagnostic } from "./test-env.mjs";
+import { mergeCleanupError, parseDatabaseContainerId } from "./test-token-migration-upgrade-helpers.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+const baseMigrationVersion = "20261022190000";
 let currentStage = "status";
 
 function run(command, args, env, options = {}) {
@@ -54,7 +56,7 @@ function databaseContainer(cliEnv) {
 
   const containers = run(
     "docker",
-    ["ps", "--filter", `name=supabase_db_${projectId}`, "--format", "{{.ID}} {{.Names}}"],
+    ["ps", "--filter", `name=supabase_db_${projectId}`, "--format", "{{.ID}}\t{{.Names}}"],
     cliEnv,
     { capture: true },
   );
@@ -63,19 +65,23 @@ function databaseContainer(cliEnv) {
     throw new Error(`Could not find the local Supabase database container.${diagnostic ? `\n${diagnostic}` : ""}`);
   }
 
-  const entries = (containers.stdout ?? "").trim().split(/\r?\n/).filter(Boolean);
-  const match = entries.find((entry) => entry.endsWith(` supabase_db_${projectId}`));
-  if (!match) throw new Error(`The local Supabase database container supabase_db_${projectId} is not running.`);
-  return match.split(/\s+/, 1)[0];
+  const expectedName = `supabase_db_${projectId}`;
+  const containerId = parseDatabaseContainerId(containers.stdout ?? "", expectedName);
+  if (!containerId) throw new Error(`The local Supabase database container ${expectedName} is not running.`);
+  return containerId;
 }
 
-function executePostgresSql(container, sql, cliEnv) {
-  const result = run(
+function runPostgresSql(sql, cliEnv) {
+  return run(
     "docker",
-    ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"],
+    ["exec", "-i", databaseContainer(cliEnv), "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"],
     cliEnv,
     { capture: true, input: sql },
   );
+}
+
+function executePostgresSql(sql, cliEnv) {
+  const result = runPostgresSql(sql, cliEnv);
   if (result.status !== 0) {
     const diagnostic = commandDiagnostic(result);
     throw new Error(`Running a local PostgreSQL setup statement failed.${diagnostic ? `\n${diagnostic}` : ""}`);
@@ -84,27 +90,51 @@ function executePostgresSql(container, sql, cliEnv) {
 }
 
 function verifyWholeMigrationChainWithPublicOnlySearchPath(cliEnv) {
-  const container = databaseContainer(cliEnv);
   let searchPathWasOverridden = false;
+  let primaryError;
   try {
-    executePostgresSql(container, "alter role postgres set search_path = public;", cliEnv);
+    const reset = run(npx, ["supabase", "db", "reset", "--version", baseMigrationVersion, "--yes"], cliEnv, { capture: true });
+    if (reset.status !== 0) {
+      const diagnostic = commandDiagnostic(reset);
+      throw new Error(`Local Supabase reset to ${baseMigrationVersion} before the public-only search-path migration test failed.${diagnostic ? `\n${diagnostic}` : ""}`);
+    }
+
+    executePostgresSql("alter role postgres set search_path = public;", cliEnv);
     searchPathWasOverridden = true;
 
-    const searchPath = executePostgresSql(container, "show search_path;", cliEnv);
-    if (!/^\s*search_path\s*\r?\n-+\r?\n\s*public\s*\r?\n/m.test(searchPath.stdout ?? "")) {
+    const searchPath = executePostgresSql("show search_path;", cliEnv);
+    if ((searchPath.stdout ?? "").trim() !== "public") {
       throw new Error("The migration role search_path was not exactly public.");
     }
 
-    const reset = run(npx, ["supabase", "db", "reset", "--yes"], cliEnv, { capture: true });
-    if (reset.status !== 0) {
-      const diagnostic = commandDiagnostic(reset);
+    const unqualifiedDigest = runPostgresSql("select digest('a'::text, 'sha256');", cliEnv);
+    if (unqualifiedDigest.status === 0) {
+      throw new Error("Unqualified digest unexpectedly succeeded with search_path = public.");
+    }
+    const unqualifiedDiagnostic = commandDiagnostic(unqualifiedDigest);
+    if (!/\bdigest\b/i.test(unqualifiedDiagnostic) || !/does not exist/i.test(unqualifiedDiagnostic)) {
+      throw new Error(`Unqualified digest did not fail with the expected missing-function error.${unqualifiedDiagnostic ? `\n${unqualifiedDiagnostic}` : ""}`);
+    }
+
+    executePostgresSql("select extensions.digest('a'::text, 'sha256');", cliEnv);
+
+    const migration = run(npx, ["supabase", "migration", "up", "--include-all"], cliEnv, { capture: true });
+    if (migration.status !== 0) {
+      const diagnostic = commandDiagnostic(migration);
       throw new Error(`Applying the full migration chain with search_path = public failed.${diagnostic ? `\n${diagnostic}` : ""}`);
     }
+  } catch (error) {
+    primaryError = error;
   } finally {
     if (searchPathWasOverridden) {
-      executePostgresSql(container, "alter role postgres reset search_path;", cliEnv);
+      try {
+        executePostgresSql("alter role postgres reset search_path;", cliEnv);
+      } catch (cleanupError) {
+        primaryError = mergeCleanupError(primaryError, cleanupError);
+      }
     }
   }
+  if (primaryError) throw primaryError;
 }
 
 function describeFailure(error) {
@@ -200,9 +230,8 @@ async function main() {
     verifyWholeMigrationChainWithPublicOnlySearchPath(cliEnv);
 
     currentStage = "reset";
-    const baseVersion = "20261022190000";
-    const reset = run(npx, ["supabase", "db", "reset", "--version", baseVersion, "--yes"], cliEnv);
-    if (reset.status !== 0) throw new Error(`Local Supabase reset to ${baseVersion} failed.`);
+    const reset = run(npx, ["supabase", "db", "reset", "--version", baseMigrationVersion, "--yes"], cliEnv);
+    if (reset.status !== 0) throw new Error(`Local Supabase reset to ${baseMigrationVersion} failed.`);
     await waitForPostgrestSchema(apiUrl, serviceRoleKey, "database reset");
 
     currentStage = "seed";
