@@ -104,7 +104,7 @@ const overflowLiveIntros: LiveIntro[] = [
 ];
 
 export const mockLive: LiveView = {
-  event: { id: "demo-event", name: "Demo night", slug: "demo" },
+  event: { id: "demo-event", name: "Sample event", slug: "demo" },
   count: liveMembers.length,
   members: liveMembers,
   intros: overflowLiveIntros,
@@ -136,6 +136,6 @@ export const mockOrganiser: OrganiserView = {
 };
 
 export const mockDirectory: DirectoryView = {
-  community: { name: "Demo community" },
+  community: { name: "Sample community" },
   people: M.map((m, i) => ({ name: m.name, x_handle: m.x_handle, latest_line: m.line, events_count: (i % 3) + 1, speak_on: i === 1 ? "Scaling Postgres without Kubernetes" : null })),
 };

@@ -198,6 +198,7 @@ p, li { text-wrap: pretty; }
 @keyframes mark-sweep { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
 @keyframes chip-land { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
 @keyframes ring-fade { from { box-shadow: 0 0 0 3px var(--gold); } to { box-shadow: 0 0 0 3px transparent; } }
+@keyframes ring-hold { from, to { box-shadow: 0 0 0 3px var(--gold); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes breathe { 50% { opacity: 0.55; } }
 
@@ -215,7 +216,8 @@ p, li { text-wrap: pretty; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .chip-new { animation: none; outline: 2px solid var(--gold); outline-offset: 2px; }
+  /* A new arrival still gets marked, as a static ring that disappears; nothing moves. */
+  .chip-new { animation: ring-hold 2400ms step-end !important; }
   .spinner { animation: none; border-top-color: transparent; border-right-color: currentColor; }
   .skeleton { animation: none; }
 }

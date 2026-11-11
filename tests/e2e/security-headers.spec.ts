@@ -15,11 +15,11 @@ declare global {
 }
 
 const mockPages = [
-  { path: "/e/demo/stage?mock=1", heading: "Scan to meet the right people here", waitForGraph: true },
+  { path: "/e/demo/stage?mock=1", heading: "Scan to meet the right people here" },
   { path: "/e/demo?mock=1", heading: "Who should you meet here?" },
   { path: "/e/demo/me?mock=1", heading: "Your intros" },
-  { path: "/e/demo/organiser?mock=1", heading: "Demo night · organiser" },
-  { path: "/c/demo?mock=1", heading: "Demo community" },
+  { path: "/e/demo/organiser?mock=1", heading: "Sample event · organiser" },
+  { path: "/c/demo?mock=1", heading: "Sample community" },
 ];
 
 test.describe.configure({ retries: 0 });
@@ -85,7 +85,7 @@ test("the CSP allows the mock pages to run without browser violations", async ({
     }
   });
 
-  for (const { path, heading, waitForGraph } of mockPages) {
+  for (const { path, heading } of mockPages) {
     const htmlResponse = await request.get(path);
     expect(htmlResponse.ok(), path).toBeTruthy();
     const html = await htmlResponse.text();
@@ -101,7 +101,6 @@ test("the CSP allows the mock pages to run without browser violations", async ({
     currentPath = path;
     await page.goto(path, { waitUntil: "load" });
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
-    if (waitForGraph) await expect(page.locator(".force-graph-container canvas")).toBeVisible();
 
     const cspViolations = await page.evaluate(() => window.__cspViolations);
     expect(cspViolations, path).toEqual([]);

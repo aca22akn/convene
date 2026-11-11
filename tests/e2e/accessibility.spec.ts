@@ -20,9 +20,9 @@ for (const [name, url] of mockPages) {
   });
 }
 
-test("stage List view has no accessibility violations", async ({ page }) => {
+test("stage All intros list has no accessibility violations", async ({ page }) => {
   await page.goto("/e/demo/stage?mock=1");
-  const toggle = page.getByRole("button", { name: "List view" });
+  const toggle = page.getByRole("button", { name: "All intros (5)" });
   await toggle.focus();
   await page.keyboard.press("Enter");
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
