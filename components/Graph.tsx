@@ -21,10 +21,10 @@ class Boundary extends Component<{ fallback: React.ReactNode; children: React.Re
 function PlainList({ members, intros, id, className, focusable }: { members: LiveMember[]; intros: LiveIntro[]; id: string; className: string; focusable: boolean }) {
   const byId = new Map(members.map((m) => [m.id, m]));
   return (
-    <ul id={id} aria-label="Introduction list" tabIndex={focusable ? 0 : undefined} className={`space-y-2 text-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-inset ${className}`}>
+    <ul id={id} aria-label="Introduction list" tabIndex={focusable ? 0 : undefined} className={`space-y-2 text-base ${className}`}>
       {intros.map((i) => (
         <li key={`${i.a_id}-${i.b_id}`}>
-          {byId.get(i.a_id)?.display_name ?? "?"} ↔ {byId.get(i.b_id)?.display_name ?? "?"} <span className="text-white/45">·</span> {i.headline}
+          {byId.get(i.a_id)?.display_name ?? "?"} ↔ {byId.get(i.b_id)?.display_name ?? "?"} <span className="text-fg-3">·</span> {i.headline}
         </li>
       ))}
       {intros.length === 0 && <li>No introductions yet.</li>}
@@ -34,13 +34,15 @@ function PlainList({ members, intros, id, className, focusable }: { members: Liv
 
 export function Graph({ members, intros }: { members: LiveMember[]; intros: LiveIntro[] }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Fit every node in view once the layout settles, so nobody is clipped at the edge.
+  const graph = useRef<{ zoomToFit?: (ms?: number, padding?: number) => void } | undefined>(undefined);
   const [size, setSize] = useState({ w: 600, h: 400 });
   const [listVisible, setListVisible] = useState(false);
   const listId = useId();
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     setSize({ w: el.clientWidth, h: el.clientHeight });
@@ -71,20 +73,22 @@ export function Graph({ members, intros }: { members: LiveMember[]; intros: Live
             height={size.h}
             graphData={data}
             backgroundColor="rgba(0,0,0,0)"
-            linkColor={() => "rgba(52,211,153,0.55)"}
+            linkColor={() => "rgba(242,179,61,0.7)"}
             linkWidth={2.5}
             cooldownTicks={120}
+            ref={graph as never}
+            onEngineStop={() => graph.current?.zoomToFit?.(0, 48)}
             nodeCanvasObject={(node, ctx, scale) => {
               const n = node as Node & { x?: number; y?: number };
               if (n.x == null || n.y == null) return;
               const r = 6 + n.deg * 2;
               ctx.beginPath();
               ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-              ctx.fillStyle = n.deg > 0 ? "#34d399" : "#64748b";
+              ctx.fillStyle = n.deg > 0 ? "#f1ebdd" : "#8a91a6";
               ctx.fill();
               const fs = Math.max(14 / scale, 4);
               ctx.font = `600 ${fs}px sans-serif`;
-              ctx.fillStyle = "#f4f4f6";
+              ctx.fillStyle = "#f3efe6";
               ctx.textAlign = "center";
               ctx.textBaseline = "top";
               ctx.fillText(n.name, n.x, n.y + r + 2);
@@ -97,7 +101,7 @@ export function Graph({ members, intros }: { members: LiveMember[]; intros: Live
         aria-controls={listId}
         aria-pressed={listVisible}
         onClick={() => setListVisible((visible) => !visible)}
-        className="absolute right-3 top-3 z-20 rounded-lg border border-white/30 bg-background px-3 py-2 text-sm font-medium text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        className="btn btn-secondary absolute right-3 top-3 z-20 text-sm"
       >
         List view
       </button>
@@ -106,7 +110,7 @@ export function Graph({ members, intros }: { members: LiveMember[]; intros: Live
         members={members}
         intros={intros}
         focusable={listVisible}
-        className={listVisible ? "absolute inset-0 z-10 h-full overflow-y-auto bg-background p-4 pr-24" : "sr-only"}
+        className={listVisible ? "absolute inset-0 z-10 h-full overflow-y-auto bg-ink-950 p-4 pr-32" : "sr-only"}
       />
     </div>
   );

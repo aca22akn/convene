@@ -4,7 +4,8 @@ import { mockDirectory, type DirectoryView } from "@/lib/mocks";
 import { useLive } from "@/lib/useLive";
 import { xUrl } from "@/lib/ui";
 import { Brand } from "./Brand";
-import { inputCls } from "./JoinForm";
+import { SearchIcon } from "./icons";
+import { Callout, Eyebrow, inputCls } from "./ui";
 
 export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean }) {
   const { data, error } = useLive<DirectoryView>(`/api/c/${slug}`, { mock: mock ? mockDirectory : undefined, intervalMs: 30_000 });
@@ -37,42 +38,47 @@ export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean })
   };
 
   return (
-    <main id="main" className="mx-auto w-full max-w-5xl p-5 lg:p-8">
+    <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 pb-12 pt-2 sm:px-6 lg:px-8">
       <Brand />
-      <h1 className="mt-6 text-3xl font-bold">{data?.community.name ?? slug}</h1>
-      <p className="text-white/60">{data?.total ?? data?.people.length ?? 0} members opted into the directory.</p>
-      <p className="mt-1 text-sm text-white/45">Only members who opt in appear in this directory.</p>
-      {error && !data && <p className="mt-4 text-red-300">{error}</p>}
-      <label htmlFor="directory-search" className="mt-6 block text-sm font-medium text-white/80">Search the directory</label>
-      <input id="directory-search" className={`${inputCls} mt-1`} placeholder="Search names, what people build, talks…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-      <ul className="mt-6 divide-y divide-white/10 rounded-2xl border border-white/10">
+      <Eyebrow className="mt-6">Community directory</Eyebrow>
+      <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{data?.community.name ?? slug}</h1>
+      <p className="mt-2 text-fg-2">{data?.total ?? data?.people.length ?? 0} members opted into the directory.</p>
+      <p className="mt-1 text-sm text-fg-3">Only members who opt in appear in this directory.</p>
+      {error && !data && <Callout tone="error" className="mt-4">{error}</Callout>}
+      <label htmlFor="directory-search" className="mt-6 block text-sm font-semibold">Search the directory</label>
+      <div className="relative mt-1.5">
+        <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-fg-3" />
+        <input id="directory-search" type="search" className={`${inputCls} pl-11`} placeholder="Search names, what people build, talks…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      </div>
+      {!data && !error && <div aria-hidden="true" className="mt-6 space-y-3"><div className="skeleton h-20" /><div className="skeleton h-20" /></div>}
+      <ul className="card mt-6 divide-y divide-ink-700 empty:hidden">
         {people.map((p, index) => (
           <li key={`${p.name}-${index}`} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-start sm:gap-4">
             <div className="sm:w-56 sm:shrink-0">
-              <p className="font-semibold">{p.name}</p>
+              <p className="font-bold">{p.name}</p>
               {p.x_handle && (
-                <a className="text-sm text-sky-300 underline" href={xUrl(p.x_handle)} target="_blank" rel="noreferrer">
+                <a className="text-sm font-semibold text-thread underline underline-offset-2" href={xUrl(p.x_handle)} target="_blank" rel="noreferrer">
                   @{p.x_handle.replace(/^@/, "")}
                 </a>
               )}
             </div>
             <div className="flex-1">
-              <p className="text-white/80">{p.latest_line}</p>
-              {p.speak_on && <p className="mt-1 text-sm text-amber-200">Speaks on: {p.speak_on}</p>}
+              <p className="font-serif text-[1.0625rem] leading-snug text-fg-2">{p.latest_line}</p>
+              {p.speak_on && <p className="mt-1 text-sm text-fg-2">Speaks on: <span className="font-serif text-fg">{p.speak_on}</span></p>}
             </div>
-            <span className={`self-start rounded-full px-3 py-1 text-sm ${p.events_count > 1 ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-white/60"}`}>
+            <span className={`chip self-start ${p.events_count > 1 ? "chip-gold" : ""}`}>
               seen at {p.events_count} event{p.events_count === 1 ? "" : "s"}
             </span>
           </li>
         ))}
-        {data && people.length === 0 && <li className="p-4 text-white/50">No members found.</li>}
+        {data && people.length === 0 && <li className="p-4 text-fg-2">{f ? `No members match “${filter.trim()}”.` : "Nobody has opted into the directory yet."}</li>}
       </ul>
       {nextCursor && (
         <div className="mt-4">
-          <button className={inputCls} type="button" disabled={loadingPage} onClick={() => void loadMore()}>
+          <button className="btn btn-secondary w-full" type="button" disabled={loadingPage} onClick={() => void loadMore()}>
             {loadingPage ? "Loading…" : "Load more members"}
           </button>
-          {pageError && <p className="mt-2 text-sm text-red-300" role="alert">{pageError}</p>}
+          {pageError && <p className="mt-2 text-sm font-semibold text-danger" role="alert">{pageError}</p>}
         </div>
       )}
     </main>

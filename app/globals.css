@@ -175,7 +175,6 @@ p, li { text-wrap: pretty; }
   .reveal .mark-quote { animation: mark-sweep var(--dur-mark) var(--ease-out) 260ms both; }
 
   /* ---- Motion vocabulary ---- */
-  .animate-in-soft { animation: rise-in var(--dur-arrive) var(--ease-out) both; } /* legacy alias, removed when the last screen is converted */
   .arrive { animation: rise-in var(--dur-arrive) var(--ease-out) both; }
   .arrive-stagger > :nth-child(1) { animation-delay: 0ms; }
   .arrive-stagger > :nth-child(2) { animation-delay: 110ms; }

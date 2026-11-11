@@ -18,7 +18,7 @@ const mockPages = [
   { path: "/e/demo/stage?mock=1", heading: "Scan to meet the right people here" },
   { path: "/e/demo?mock=1", heading: "Who should you meet here?" },
   { path: "/e/demo/me?mock=1", heading: "Your intros" },
-  { path: "/e/demo/organiser?mock=1", heading: "Sample event · organiser" },
+  { path: "/e/demo/organiser?mock=1", heading: "Sample event" },
   { path: "/c/demo?mock=1", heading: "Sample community" },
 ];
 
