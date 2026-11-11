@@ -1,31 +1,222 @@
 @import "tailwindcss";
 
+/*
+ * Convene design tokens. See docs/design/DESIGN-SYSTEM.md.
+ * Two voices: the app speaks in sans, people speak in serif. The intro card is the only light surface.
+ * tests/design-tokens.test.ts parses this block and enforces WCAG AA on every text/surface pair.
+ */
 :root {
-  --background: #0b0b10;
-  --foreground: #f4f4f6;
+  --ink-950: #0f1117;
+  --ink-900: #161922;
+  --ink-800: #1f2330;
+  --ink-700: #2c3140;
+  --line-strong: #4a5166;
+  --edge: #8a91a6;
+
+  --fg: #f3efe6;
+  --fg-2: #c4c1b7;
+  --fg-3: #9d9a91;
+
+  --paper: #f1ebdd;
+  --paper-ink: #1c1913;
+  --paper-2: #5b5445;
+
+  --gold: #f2b33d;
+  --gold-hover: #ffc65c;
+  --on-gold: #1b1405;
+  --thread: #9db8ff;
+  --danger: #ff8e85;
+  --danger-solid: #b3302b;
+  --ok: #7bd9a4;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-quick: 160ms;
+  --dur-base: 280ms;
+  --dur-arrive: 520ms;
+  --dur-mark: 700ms;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-800: var(--ink-800);
+  --color-ink-700: var(--ink-700);
+  --color-line-strong: var(--line-strong);
+  --color-edge: var(--edge);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-paper: var(--paper);
+  --color-paper-ink: var(--paper-ink);
+  --color-paper-2: var(--paper-2);
+  --color-gold: var(--gold);
+  --color-on-gold: var(--on-gold);
+  --color-thread: var(--thread);
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-ok: var(--ok);
+  --color-background: var(--ink-950);
+  --color-foreground: var(--fg);
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-people), ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 html {
   color-scheme: dark;
+  background: var(--ink-950);
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--ink-950);
+  color: var(--fg);
+  font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-@keyframes convene-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: none; }
+h1, h2, h3 { text-wrap: balance; }
+p, li { text-wrap: pretty; }
+::selection { background: var(--gold); color: var(--on-gold); }
+
+/* Visible focus on everything interactive. On paper the ring flips to ink so it keeps 3:1. */
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 0.375rem; }
+.paper :focus-visible { outline-color: var(--paper-ink); }
+
+.skip-link {
+  position: absolute; left: 1rem; top: -5rem; z-index: 100;
+  background: var(--gold); color: var(--on-gold); font-weight: 700;
+  padding: 0.75rem 1rem; border-radius: 0.75rem;
 }
-.animate-in-soft {
-  animation: convene-in 0.5s ease-out both;
+.skip-link:focus { top: 1rem; }
+
+@layer components {
+  /* ---- Surfaces ---- */
+  .card { background: var(--ink-900); border: 1px solid var(--ink-700); border-radius: 1rem; }
+  .card-raised { background: var(--ink-800); border: 1px solid var(--ink-700); border-radius: 1rem; }
+  .paper {
+    background: var(--paper); color: var(--paper-ink); border-radius: 1.25rem;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.55) inset, 0 22px 44px -22px rgb(0 0 0 / 0.75);
+  }
+
+  /* ---- Buttons: 44px minimum everywhere ---- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    min-height: 2.75rem; padding: 0.625rem 1.125rem; border-radius: 0.75rem;
+    border: 1.5px solid transparent; font-weight: 650; font-size: 1rem; line-height: 1.2; text-align: center;
+    cursor: pointer; text-decoration: none;
+    transition: background-color var(--dur-quick) var(--ease-out), border-color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out);
+  }
+  .btn:active:not([disabled]):not([aria-disabled="true"]) { transform: translateY(1px); }
+  .btn[disabled], .btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+  .btn-lg { min-height: 3.5rem; padding-inline: 1.5rem; font-size: 1.125rem; }
+  .btn-primary { background: var(--gold); color: var(--on-gold); }
+  .btn-primary:hover:not([disabled]):not([aria-disabled="true"]) { background: var(--gold-hover); }
+  .btn-secondary { background: var(--ink-800); color: var(--fg); border-color: var(--line-strong); }
+  .btn-secondary:hover:not([disabled]):not([aria-disabled="true"]) { background: var(--ink-700); }
+  .btn-ghost { background: transparent; color: var(--fg-2); }
+  .btn-ghost:hover:not([disabled]):not([aria-disabled="true"]) { background: var(--ink-800); color: var(--fg); }
+  .btn-danger { background: var(--danger-solid); color: #fff; }
+  .btn-danger:hover:not([disabled]):not([aria-disabled="true"]) { background: #c63a34; }
+  .paper .btn-secondary { background: transparent; color: var(--paper-ink); border-color: var(--paper-2); }
+  .paper .btn-secondary:hover { background: rgb(28 25 19 / 0.08); }
+
+  /* ---- Fields ---- */
+  .field {
+    width: 100%; min-height: 3rem; padding: 0.75rem 0.875rem; border-radius: 0.75rem;
+    border: 1.5px solid var(--edge); background: var(--ink-800); color: var(--fg);
+    font-size: 1.0625rem; line-height: 1.4;
+    transition: border-color var(--dur-quick) var(--ease-out);
+  }
+  .field::placeholder { color: var(--fg-3); }
+  .field:focus-visible { border-color: var(--gold); outline: 3px solid var(--gold); outline-offset: 2px; }
+  .field[aria-invalid="true"] { border-color: var(--danger); }
+  .field:disabled { opacity: 0.5; cursor: not-allowed; }
+  .field-voice { font-family: var(--font-people), ui-serif, Georgia, serif; font-size: 1.1875rem; line-height: 1.45; }
+  .check-row { display: flex; align-items: flex-start; gap: 0.875rem; min-height: 2.75rem; cursor: pointer; }
+  .check-row input[type="checkbox"] { width: 1.5rem; height: 1.5rem; margin-top: 0.125rem; flex: none; accent-color: var(--gold); cursor: pointer; }
+
+  /* ---- Chips and status ---- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.75rem; border-radius: 999px;
+    border: 1px solid var(--ink-700); background: var(--ink-800); color: var(--fg-2);
+    font-size: 0.875rem; font-weight: 600; line-height: 1.3;
+  }
+  .chip-gold { background: color-mix(in srgb, var(--gold) 16%, var(--ink-900)); border-color: color-mix(in srgb, var(--gold) 55%, transparent); color: var(--gold); }
+  .chip-thread { color: var(--thread); }
+  .dot { display: inline-block; width: 0.625rem; height: 0.625rem; border-radius: 999px; background: currentColor; flex: none; }
+
+  /* ---- The switch used for Close joining ---- */
+  .switch {
+    position: relative; flex: none; width: 5rem; height: 2.75rem; border-radius: 999px; cursor: pointer;
+    background: var(--ink-700); border: 1.5px solid var(--edge);
+    transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 0.25rem; left: 0.25rem; width: 2rem; height: 2rem; border-radius: 999px;
+    background: var(--fg); transition: transform var(--dur-base) var(--ease-out);
+  }
+  .switch[aria-checked="true"] { background: var(--gold); border-color: var(--gold); }
+  .switch[aria-checked="true"]::after { transform: translateX(2.25rem); background: var(--on-gold); }
+  .switch[disabled] { opacity: 0.55; cursor: progress; }
+
+  /* ---- People's words: the highlighter ---- */
+  .mark-quote {
+    color: inherit; padding: 0.05em 0.2em; margin-inline: -0.05em;
+    background-image: linear-gradient(transparent 10%, color-mix(in srgb, var(--gold) 34%, transparent) 10% 96%, transparent 96%);
+    background-repeat: no-repeat; background-size: 100% 100%;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+  .paper .mark-quote {
+    background-image: linear-gradient(transparent 10%, color-mix(in srgb, var(--gold) 60%, transparent) 10% 96%, transparent 96%);
+  }
+  .reveal .mark-quote { animation: mark-sweep var(--dur-mark) var(--ease-out) 260ms both; }
+
+  /* ---- Motion vocabulary ---- */
+  .arrive { animation: rise-in var(--dur-arrive) var(--ease-out) both; }
+  .arrive-stagger > :nth-child(1) { animation-delay: 0ms; }
+  .arrive-stagger > :nth-child(2) { animation-delay: 110ms; }
+  .arrive-stagger > :nth-child(3) { animation-delay: 220ms; }
+  .arrive-stagger > :nth-child(4) { animation-delay: 330ms; }
+  .step-fwd { animation: step-fwd var(--dur-base) var(--ease-out) both; }
+  .step-back { animation: step-back var(--dur-base) var(--ease-out) both; }
+  .chip-new { animation: chip-land 420ms var(--ease-out) both, ring-fade 2400ms var(--ease-out) both; }
+  .spinner {
+    width: 1.25rem; height: 1.25rem; border-radius: 999px; flex: none;
+    border: 3px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor;
+    animation: spin 900ms linear infinite;
+  }
+  .skeleton { background: var(--ink-800); border-radius: 0.5rem; animation: breathe 1600ms ease-in-out infinite; }
+}
+
+@keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes step-fwd { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes step-back { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes mark-sweep { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+@keyframes chip-land { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes ring-fade { from { box-shadow: 0 0 0 3px var(--gold); } to { box-shadow: 0 0 0 3px transparent; } }
+@keyframes ring-hold { from, to { box-shadow: 0 0 0 3px var(--gold); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes breathe { 50% { opacity: 0.55; } }
+
+/* The stage is a fixed-size poster: every dimension inside it is in em over this root. */
+@media (min-width: 1024px) {
+  .stage { font-size: min(1.1vw, 1.95vh); }
+}
+
+/* Reduced motion: nothing moves. State is always set directly; no logic waits on an animation. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* A new arrival still gets marked, as a static ring that disappears; nothing moves. */
+  .chip-new { animation: ring-hold 2400ms step-end !important; }
+  .spinner { animation: none; border-top-color: transparent; border-right-color: currentColor; }
+  .skeleton { animation: none; }
 }

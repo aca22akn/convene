@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitQuote, headlineQuote, tagRows, firstName } from "@/lib/ui";
+import { splitQuote, headlineQuote, tagRows, firstName, quoteOwner } from "@/lib/ui";
 
 describe("splitQuote", () => {
   it("highlights an exact substring", () => {
@@ -39,4 +39,16 @@ describe("tagRows", () => {
 
 describe("firstName", () => {
   it("takes the first word", () => expect(firstName("  Dr Amara Mensah")).toBe("Dr"));
+});
+
+describe("quoteOwner", () => {
+  it("attributes a quote to whichever line contains it", () => {
+    expect(quoteOwner("need Y", "Building X, need Y", "Building Z")).toBe("you");
+    expect(quoteOwner("need Y", "Building X", "Building Z, need Y")).toBe("them");
+  });
+  it("does not guess when the quote is missing, in neither line, or in both", () => {
+    expect(quoteOwner(null, "a", "b")).toBeNull();
+    expect(quoteOwner("zzz", "a", "b")).toBeNull();
+    expect(quoteOwner("need Y", "need Y", "also need Y")).toBeNull();
+  });
 });

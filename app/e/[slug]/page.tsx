@@ -16,7 +16,17 @@ export default async function JoinPage({
   const event = mock ? null : await getEvent(slug);
   const configuredDays = Number(process.env.RETENTION_DAYS);
   const retentionDays = Number.isSafeInteger(configuredDays) && configuredDays > 0 ? configuredDays : RETENTION_DAYS_DEFAULT;
-  return <JoinForm slug={slug} aiEnabled={event?.ai_enabled === true} joiningClosed={mock ? sp.closed === "1" : event?.joins_closed === true} retentionDays={retentionDays} aiProviderName={aiProviderName()} />;
+  return (
+    <JoinForm
+      slug={slug}
+      eventName={mock ? "Sample event" : event?.name}
+      aiEnabled={event?.ai_enabled === true}
+      joiningClosed={mock ? sp.closed === "1" : event?.joins_closed === true}
+      notFound={!mock && event === null}
+      retentionDays={retentionDays}
+      aiProviderName={aiProviderName()}
+    />
+  );
 }
 
 // Per-request page (params/searchParams); allow blocking render.

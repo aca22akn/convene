@@ -32,6 +32,17 @@ export function tagRows(needs: Record<string, number>, offers: Record<string, nu
     .sort((a, b) => b.needs - a.needs || b.offers - a.offers || a.tag.localeCompare(b.tag));
 }
 
+export type QuoteOwner = "you" | "them" | null;
+
+/** Whose words a grounded quote is, by exact substring match against each line. Ambiguous or absent matches return null. */
+export function quoteOwner(quote: string | null | undefined, myLine: string, theirLine: string): QuoteOwner {
+  if (!quote) return null;
+  const mine = myLine.includes(quote);
+  const theirs = theirLine.includes(quote);
+  if (mine === theirs) return null;
+  return mine ? "you" : "them";
+}
+
 export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name;
 }
