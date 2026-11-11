@@ -1,9 +1,21 @@
 import Link from "next/link";
 
+/** Two people, one thread between them: the whole product in a mark. */
+export function BrandMark({ className = "h-5 w-7" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 28 20" className={className} fill="none">
+      <path d="M8 10h12" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="6" cy="10" r="5" fill="var(--paper)" />
+      <circle cx="22" cy="10" r="5" fill="var(--gold)" />
+    </svg>
+  );
+}
+
 export function Brand({ small = false }: { small?: boolean }) {
   return (
-    <Link href="/" className={`font-semibold tracking-tight ${small ? "text-lg" : "text-2xl"}`}>
-      <span className="text-emerald-400">●</span> Convene
+    <Link href="/" className={`inline-flex min-h-11 items-center gap-2.5 font-bold tracking-tight text-fg ${small ? "text-lg" : "text-xl"}`}>
+      <BrandMark />
+      Convene
     </Link>
   );
 }
