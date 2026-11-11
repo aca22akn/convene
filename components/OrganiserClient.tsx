@@ -126,7 +126,13 @@ export function OrganiserClient({ slug, mock, aiProviderName = "AI" }: { slug: s
                 {authBusy ? (<><Spinner /> Securing session…</>) : "Continue"}
               </button>
             </form>
-            {(authError || error) && <p role="alert" className="mt-4 text-sm font-semibold text-danger">{authError ?? error}</p>}
+            {(authError || error) && (
+              <p role="alert" className="mt-4 text-sm font-semibold text-danger">
+                {/unauthori[sz]ed|forbidden|40[13]/i.test(authError ?? error ?? "")
+                  ? authError ? "That token didn’t work. Check you copied the whole organiser link or token." : "This browser isn’t signed in to this event’s dashboard yet, or your 12-hour session has ended."
+                  : authError ?? error}
+              </p>
+            )}
           </section>
         )}
       </main>

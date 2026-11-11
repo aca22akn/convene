@@ -102,6 +102,6 @@ describe("organiser dashboard", () => {
     useLive.mockReturnValue({ data: null, error: "unauthorised", refetch });
     render(<OrganiserClient slug="demo" mock={false} />);
     expect(screen.getByRole("textbox", { name: "Organiser token" })).toBeTruthy();
-    expect(screen.getByRole("alert").textContent).toBe("unauthorised");
+    expect(screen.getByRole("alert").textContent).toMatch(/isn’t signed in to this event’s dashboard yet, or your 12-hour session has ended/);
   });
 });

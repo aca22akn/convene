@@ -107,6 +107,26 @@ Motion exists for two reasons only: **orientation** (where did this come from / 
 | Stage list | **Latest intro** / **Earlier intros** | |
 | Seeded example | **sample event** | demo |
 | Organiser who may speak | **speaker candidate** | volunteer |
-| Joining | **Joining is open / closed** (control: **Close joining**) | doors (kept only where a test pins it; see change log) |
+| Joining | **Joining is open / closed** (control: **Close joining**) | "The doors are closed" is kept as the plain-English attendee/dashboard sentence |
 
 Privacy copy: `lib/privacy.ts` stays the single source and is **not edited** (it is privacy logic and the README/docs tests compare against it). The UI renders every sentence verbatim, in a "How your data is used" disclosure, with backticked config keys rendered as `<code>`. The short consent sentences next to each checkbox are new UI copy that restates (never extends) what the notice already says.
+
+## 6. Implementation notes
+
+- **No inline styles.** The CSP has no `'unsafe-inline'` for styles, so every dynamic visual (stagger, highlighter, arrival ring, bar lengths) is a class, an `nth-child` rule or a native `<progress>`; never a `style=` attribute.
+- **Motion only on mount.** Intro cards and roster chips animate because they are new DOM nodes (keyed by id); existing nodes never re-animate, so a poll that changes nothing moves nothing. No logic waits on an animation.
+- **Stage graph moved.** The force graph was unreadable at 10 m, so it left the stage and became the dashboard's *Room map* (now zoomed to fit). Every intro on the stage stays reachable through the keyboard-operated *All intros* list.
+- **Privacy text** is still rendered from `lib/privacy.ts`, unedited.
+- **No API, auth, token, rate-limit, header, retention or migration changes.** Client validation only mirrors existing server rules (event name 2–80, community slug ≤ 40, X handle `^@?[A-Za-z0-9_]{1,15}$`).
+
+## 7. Tests changed because the UI changed
+
+| File | Why |
+|---|---|
+| `tests/join-directory-consent.test.tsx` | Join is now stepped; button is "Find my intros"; optional-text class is now the `fg-2` token. Rewritten and extended (validation, focus, contact consent, offline, not-found). |
+| `tests/me-client.test.tsx` | Vocabulary (`Loading your intros`, `No intros yet`); added finding/taking-longer, attribution, stale-data tests. |
+| `tests/stage-client.test.tsx` | Stage no longer has a scrolling "Latest introductions" list; tests the featured intro, earlier intros, All intros list, roster, reconnecting state. |
+| `tests/e2e/stage.spec.ts` | Graph removed from stage; "All intros" replaces "List view"; asserts no scrolling at 1280×720, 1366×768, 1920×1080 and ≥ 28 px quote text. |
+| `tests/e2e/accessibility.spec.ts` | Stepped join (Next → Next → Find my intros); "All intros" toggle; new axe checks for every join step and the intros finding/empty/error states. |
+| `tests/e2e/security-headers.spec.ts` | Headings: "Who should you meet here?", "Your intros", "Sample event", "Sample community"; no graph wait on the stage. |
+| New | `tests/design-tokens.test.ts`, `tests/create-event-flow.test.tsx`, `tests/organiser-dashboard.test.tsx`, `quoteOwner` cases in `tests/ui.test.ts`. |
