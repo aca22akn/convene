@@ -119,6 +119,9 @@ export const mockMe: MeView = {
   ],
 };
 
+/** The example intro shown on the homepage: fictional people, same shape as a real /me match. */
+export const sampleIntro = { myLine: mockMe.member.line, match: mockMe.matches[0] };
+
 export const mockOrganiser: OrganiserView = {
   event: { ...mockLive.event, joins_closed: false },
   members: M.map((m, i) => ({ ...m, contact_consent: i % 2 === 0 })),

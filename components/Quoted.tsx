@@ -6,7 +6,7 @@ export function Quoted({ text, quote }: { text: string; quote?: string | null })
     <>
       {splitQuote(text, quote).map((s, i) =>
         s.quoted ? (
-          <mark key={i} className="rounded bg-amber-300/20 px-1 text-amber-200">
+          <mark key={i} className="mark-quote">
             “{s.text}”
           </mark>
         ) : (
@@ -19,5 +19,5 @@ export function Quoted({ text, quote }: { text: string; quote?: string | null })
 
 /** A quote as a standalone highlighted span. */
 export function QuotePill({ quote }: { quote: string }) {
-  return <mark className="rounded bg-amber-300/20 px-1 text-amber-200">“{quote}”</mark>;
+  return <mark className="mark-quote">“{quote}”</mark>;
 }
