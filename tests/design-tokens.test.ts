@@ -56,6 +56,6 @@ describe("design tokens meet WCAG AA", () => {
     for (const surface of ["ink-900", "ink-800"]) {
       expect(ratio(tokens.fg, mix(tokens.gold, 0.34, tokens[surface])), surface).toBeGreaterThanOrEqual(4.5);
     }
-    expect(ratio(tokens["paper-ink"], mix(tokens.gold, 0.78, tokens.paper))).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(tokens["paper-ink"], mix(tokens.gold, 0.6, tokens.paper))).toBeGreaterThanOrEqual(4.5);
   });
 });

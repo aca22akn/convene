@@ -19,7 +19,7 @@ export function LegacyTokenExchange({ returnTo }: { returnTo: string }) {
   }, []);
 
   return (
-    <main className="mx-auto max-w-xl p-8">
+    <main id="main" className="mx-auto max-w-xl p-8">
       <p role="status">Securing your organiser session…</p>
       <form ref={form} action="/api/auth/exchange" method="post">
         <input type="hidden" name="token" value="" />

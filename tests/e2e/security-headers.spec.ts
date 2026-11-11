@@ -16,8 +16,8 @@ declare global {
 
 const mockPages = [
   { path: "/e/demo/stage?mock=1", heading: "Scan to meet the right people here", waitForGraph: true },
-  { path: "/e/demo?mock=1", heading: "Who should you meet tonight?" },
-  { path: "/e/demo/me?mock=1", heading: "People to meet" },
+  { path: "/e/demo?mock=1", heading: "Who should you meet here?" },
+  { path: "/e/demo/me?mock=1", heading: "Your intros" },
   { path: "/e/demo/organiser?mock=1", heading: "Demo night · organiser" },
   { path: "/c/demo?mock=1", heading: "Demo community" },
 ];

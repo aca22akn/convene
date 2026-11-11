@@ -170,7 +170,7 @@ p, li { text-wrap: pretty; }
     -webkit-box-decoration-break: clone; box-decoration-break: clone;
   }
   .paper .mark-quote {
-    background-image: linear-gradient(transparent 10%, color-mix(in srgb, var(--gold) 78%, transparent) 10% 96%, transparent 96%);
+    background-image: linear-gradient(transparent 10%, color-mix(in srgb, var(--gold) 60%, transparent) 10% 96%, transparent 96%);
   }
   .reveal .mark-quote { animation: mark-sweep var(--dur-mark) var(--ease-out) 260ms both; }
 

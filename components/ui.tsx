@@ -1,9 +1,23 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AlertIcon, CheckIcon, CopyIcon, InfoIcon } from "./icons";
 
 /** Shared class for every text input, textarea and select. */
 export const inputCls = "field";
+
+const subscribeOnline = (onChange: () => void) => {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+};
+
+/** `navigator.onLine`, live. Treated as online on the server and during hydration. */
+export function useOnline(): boolean {
+  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
+}
 
 type CopyState = "idle" | "copied" | "failed";
 

@@ -37,7 +37,7 @@ export function DirectoryClient({ slug, mock }: { slug: string; mock: boolean })
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl p-5 lg:p-8">
+    <main id="main" className="mx-auto w-full max-w-5xl p-5 lg:p-8">
       <Brand />
       <h1 className="mt-6 text-3xl font-bold">{data?.community.name ?? slug}</h1>
       <p className="text-white/60">{data?.total ?? data?.people.length ?? 0} members opted into the directory.</p>

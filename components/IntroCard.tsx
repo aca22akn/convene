@@ -28,16 +28,7 @@ export function IntroCard({
   return (
     <article className="paper arrive reveal p-5 sm:p-6">
       {label && <p className="text-sm font-bold uppercase tracking-[0.14em] text-paper-2">{label}</p>}
-      <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 ${label ? "mt-2" : ""}`}>
-        <Heading className="text-3xl font-extrabold leading-tight tracking-tight">{match.member.name}</Heading>
-        {showLinks && match.member.x_handle && (
-          <a href={xUrl(match.member.x_handle)} target="_blank" rel="noreferrer" className="btn btn-secondary">
-            @{match.member.x_handle.replace(/^@/, "")} on X
-            <ExternalIcon className="h-4 w-4" />
-            <span className="sr-only">(opens in a new tab)</span>
-          </a>
-        )}
-      </div>
+      <Heading className={`text-3xl font-extrabold leading-tight tracking-tight ${label ? "mt-2" : ""}`}>{match.member.name}</Heading>
       <p className="mt-2 font-serif text-[1.0625rem] leading-snug text-paper-2">{match.member.line}</p>
 
       <p className="mt-6 text-sm font-bold uppercase tracking-[0.14em] text-paper-2">Why you two</p>
@@ -59,6 +50,16 @@ export function IntroCard({
           );
         })}
       </ul>
+
+      {showLinks && match.member.x_handle && (
+        <div className="mt-6 border-t border-paper-ink/15 pt-4">
+          <a href={xUrl(match.member.x_handle)} target="_blank" rel="noreferrer" className="btn btn-secondary">
+            Find {first} on X: @{match.member.x_handle.replace(/^@/, "")}
+            <ExternalIcon className="h-4 w-4" />
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
+        </div>
+      )}
     </article>
   );
 }

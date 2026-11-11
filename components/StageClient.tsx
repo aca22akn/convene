@@ -21,7 +21,7 @@ export function StageClient({ slug, mock }: { slug: string; mock: boolean }) {
   const byId = new Map(members.map((m) => [m.id, m]));
 
   return (
-    <main className="grid min-h-screen grid-cols-1 gap-6 p-6 lg:h-screen lg:grid-cols-[minmax(340px,38%)_1fr] lg:p-10">
+    <main id="main" className="grid min-h-screen grid-cols-1 gap-6 p-6 lg:h-screen lg:grid-cols-[minmax(340px,38%)_1fr] lg:p-10">
       <section className="flex flex-col">
         <div className="flex items-center justify-between">
           <Brand />

@@ -88,7 +88,7 @@ export function OrganiserClient({ slug, mock, aiProviderName = "xAI" }: { slug: 
 
   if (!mock && !data) {
     return (
-      <main className="mx-auto max-w-2xl p-8">
+      <main id="main" className="mx-auto max-w-2xl p-8">
         <Brand />
         <h1 className="mt-8 text-xl">Organiser access</h1>
         <p className="mt-2 text-white/70">Open your saved organiser link or paste an event or community token to start a 12-hour session.</p>
@@ -109,7 +109,7 @@ export function OrganiserClient({ slug, mock, aiProviderName = "xAI" }: { slug: 
   const community = data?.event.community_slug;
 
   return (
-    <main className="mx-auto w-full max-w-6xl p-5 lg:p-8">
+    <main id="main" className="mx-auto w-full max-w-6xl p-5 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-4">
           <Brand />
